@@ -41,7 +41,7 @@ gate every change, including Starfish's, has to pass; CI runs it on every pull r
 ```sh
 pnpm install
 cp web/.env.example web/.env.local          # fill in the Firebase web config
-cp functions/.env.example functions/.env.<project-id>   # DEMO_CONTROLLER_URL
+cp functions/.env.example functions/.env.<project-id>   # upstream URLs
 pnpm run verify
 ```
 
