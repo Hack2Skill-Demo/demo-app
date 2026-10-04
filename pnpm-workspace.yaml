@@ -1,6 +1,7 @@
 packages:
   - web
   - functions
+  - pdf-renderer
 onlyBuiltDependencies:
   - esbuild
   - protobufjs

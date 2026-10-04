@@ -1,5 +1,6 @@
 import type { OrderLine } from './types';
 
+/** Labels on the invoice, in the order the renderer expects them: translated with the product names in one API call. */
 export const INVOICE_LABELS = ['Invoice', 'Order', 'Date', 'Item', 'Qty', 'Price', 'Subtotal', 'Discount', 'Total'] as const;
 export type InvoiceLabel = (typeof INVOICE_LABELS)[number];
 
@@ -27,9 +28,4 @@ export function splitTranslations(
   if (translated.length !== INVOICE_LABELS.length + lineCount) throw new Error('Translation returned the wrong number of texts');
   const labels = Object.fromEntries(INVOICE_LABELS.map((l, i) => [l, translated[i]!])) as Record<InvoiceLabel, string>;
   return { labels, names: translated.slice(INVOICE_LABELS.length) };
-}
-
-/** The standard PDF fonts only draw Latin text; swap anything else for "?" rather than fail the whole invoice. */
-export function toDrawable(text: string, supported: ReadonlySet<number>): string {
-  return Array.from(text, (ch) => (supported.has(ch.codePointAt(0)!) ? ch : '?')).join('');
 }

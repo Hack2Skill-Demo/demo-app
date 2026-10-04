@@ -7,9 +7,10 @@ import { Lab } from './pages/Lab';
 import { Orders } from './pages/Orders';
 import { Reports } from './pages/Reports';
 import { Shop } from './pages/Shop';
+import { Support } from './pages/Support';
 
-type Page = 'shop' | 'orders' | 'reports' | 'lab';
-const LABELS: Record<Page, string> = { shop: 'Shop', orders: 'My orders', reports: 'Reports', lab: 'Lab' };
+type Page = 'shop' | 'orders' | 'reports' | 'support' | 'lab';
+const LABELS: Record<Page, string> = { shop: 'Shop', orders: 'My orders', reports: 'Reports', support: 'Support', lab: 'Lab' };
 type Gate = { state: 'loading' } | { state: 'locked' } | { state: 'open'; user: User };
 
 /** A browser is unlocked while it holds an unexpired grant, or when a team member is signed in. */
@@ -57,6 +58,7 @@ export function App() {
         {page === 'shop' && <Shop onOrdered={() => setPage('orders')} />}
         {page === 'orders' && <Orders />}
         {page === 'reports' && <Reports />}
+        {page === 'support' && <Support />}
         {page === 'lab' && <Lab />}
       </main>
     </div>

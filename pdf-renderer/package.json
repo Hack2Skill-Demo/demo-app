@@ -1,0 +1,17 @@
+{
+  "name": "demo-pdf-renderer",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  }
+}

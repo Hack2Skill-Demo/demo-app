@@ -1,6 +1,7 @@
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import type { CreateOrderRequest, Product } from '../../../shared/types';
+import { GIFT_WRAP_CENTS } from '../../../shared/pricing';
+import type { CreateOrderRequest, Fulfillment, Product } from '../../../shared/types';
 import { call, db, errorMessage } from '../firebase';
 import { money } from '../format';
 
@@ -12,11 +13,43 @@ export function Shop({ onOrdered }: { onOrdered: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [giftWrap, setGiftWrap] = useState(false);
+  const [delivery, setDelivery] = useState(false);
+  const [address, setAddress] = useState('');
+  const [tags, setTags] = useState('');
+  const [cardCode, setCardCode] = useState('');
+  const [cardBalance, setCardBalance] = useState<number | null>(null);
+  const [cardError, setCardError] = useState<string | null>(null);
+
   useEffect(() => {
-    getDocs(query(collection(db, 'products'), orderBy('name')))
-      .then((snap) => setProducts(snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Product, 'id'>) }))))
+    // One cheap read of the document the cache warmer keeps fresh; read the products if it is missing or stale.
+    const fromCache = async (): Promise<Product[] | null> => {
+      const snap = await getDoc(doc(db, 'cache', 'catalog'));
+      const refreshed = (snap.get('refreshedAt') as { toMillis(): number } | undefined)?.toMillis();
+      if (!snap.exists() || !refreshed || Date.now() - refreshed > 30 * 60 * 1000) return null;
+      return snap.get('products') as Product[];
+    };
+    const fromProducts = async (): Promise<Product[]> =>
+      (await getDocs(query(collection(db, 'products'), orderBy('name')))).docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<Product, 'id'>),
+      }));
+    fromCache()
+      .catch(() => null)
+      .then((cached) => cached ?? fromProducts())
+      .then(setProducts)
       .catch((err) => setLoadError(errorMessage(err)));
   }, []);
+
+  const applyCard = async () => {
+    setCardError(null);
+    setCardBalance(null);
+    try {
+      setCardBalance((await call<{ code: string }, { balanceCents: number }>('orders-applyGiftCard', { code: cardCode })).balanceCents);
+    } catch (err) {
+      setCardError(errorMessage(err));
+    }
+  };
 
   if (loadError) return <p role="alert" className="error">Could not load products: {loadError}</p>;
   if (!products) return <p>Loading products…</p>;
@@ -32,6 +65,10 @@ export function Shop({ onOrdered }: { onOrdered: () => void }) {
       const body: CreateOrderRequest = {
         items: entries.map(([productId, qty]) => ({ productId, qty })),
         ...(coupon.trim() ? { coupon: coupon.trim() } : {}),
+        ...(cardBalance !== null ? { giftCardCode: cardCode } : {}),
+        giftWrap,
+        fulfillment: (delivery ? { type: 'delivery', address } : { type: 'pickup', location: '' }) satisfies Fulfillment,
+        tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       };
       await call('orders-createOrder', body);
       setCart({});
@@ -69,7 +106,32 @@ export function Shop({ onOrdered }: { onOrdered: () => void }) {
                 </li>
               ))}
             </ul>
-            <p>Subtotal {money(subtotal)}</p>
+            <p>Subtotal {money(subtotal)}{giftWrap && ` + gift wrap ${money(GIFT_WRAP_CENTS)}`}</p>
+            <label>
+              <input type="checkbox" checked={giftWrap} onChange={(e) => setGiftWrap(e.target.checked)} /> Gift wrap
+            </label>
+            <label>
+              <input type="checkbox" checked={delivery} onChange={(e) => setDelivery(e.target.checked)} /> Deliver to me (otherwise pick up in store)
+            </label>
+            {delivery && (
+              <label>
+                Delivery address
+                <input value={address} onChange={(e) => setAddress(e.target.value)} />
+              </label>
+            )}
+            <label>
+              Tags (comma separated, optional)
+              <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="birthday, gift" />
+            </label>
+            <label>
+              Gift card
+              <input value={cardCode} onChange={(e) => { setCardCode(e.target.value); setCardBalance(null); }} placeholder="optional" />
+            </label>
+            {cardCode.trim() && (
+              <button className="link" onClick={() => void applyCard()}>Check balance</button>
+            )}
+            {cardBalance !== null && <p>Gift card balance: {money(cardBalance)}. It will be used at checkout.</p>}
+            {cardError && <p role="alert" className="error">{cardError}</p>}
             <label>
               Coupon
               <input value={coupon} onChange={(e) => setCoupon(e.target.value)} placeholder="optional" />

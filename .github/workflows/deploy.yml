@@ -53,6 +53,17 @@ jobs:
       - name: Read the Hosting site from firebase.json
         run: echo "HOSTING_SITE=$(node -p "require('./firebase.json').hosting.site")" >> "$GITHUB_ENV"
 
+      # The invoice PDF renderer is a private Cloud Run service, deployed from its own directory.
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Deploy the PDF renderer
+        run: >
+          gcloud run deploy pdf-renderer
+          --source pdf-renderer
+          --project "$FIREBASE_PROJECT_ID"
+          --region us-central1
+          --no-allow-unauthenticated
+          --quiet
+
       # Firebase skips functions whose source is unchanged, so only changed functions are redeployed.
       - name: Deploy functions and Hosting
         run: >

@@ -21,3 +21,6 @@ ul { padding: 0; list-style: none; }
 .dot { display: inline-block; width: .8rem; height: .8rem; border-radius: 50%; }
 .dot.green { background: #1e8e3e; } .dot.amber { background: #f9ab00; } .dot.red { background: #d93025; } .dot.grey { background: #aaa; }
 .sr { position: absolute; left: -9999px; }
+.details { flex-basis: 100%; background: #f0f0f0; padding: .5rem 1rem; border-radius: 4px; }
+.search { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; }
+textarea { display: block; margin-top: .25rem; padding: .4rem; width: 100%; box-sizing: border-box; }

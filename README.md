@@ -16,7 +16,8 @@ from breaking the other, and they apply from the first commit:
   it, a functions deploy from either repo would delete the other repo's functions.
 - **Hosting** is its own site, named in `firebase.json`, so the two deploys never
   overwrite each other.
-- **Firestore:** the shop uses the `(default)` database. Starfish keeps its own data in the
+- **Firestore:** the shop uses the `(default)` database, plus a second one, `analytics`, for
+  reporting. Starfish keeps its own data in the
   named database `starfish`. Never deploy rules or indexes from one repo to the other's
   database, and never deploy `firestore.indexes.json` with `--force`, which deletes
   indexes that aren't in the file.
@@ -30,6 +31,7 @@ gate every change, including Starfish's, has to pass; CI runs it on every pull r
 | Path | What it is |
 | --- | --- |
 | `web/` | The shop (React + Vite), deployed to its own Hosting site |
+| `pdf-renderer/` | Cloud Run service that draws invoice PDFs (self-contained, own Dockerfile) |
 | `functions/` | Callable functions as grouped exports, deployed as `orders-createOrder` and so on |
 | `shared/` | Pure code used by both: pricing, access-code rules, feature health |
 | `firestore.rules`, `firestore.indexes.json` | Rules and indexes for the `(default)` database |
@@ -90,3 +92,40 @@ After a successful deploy `functions/scripts/record-deploy.mjs` writes the commi
 revision of each function, the Hosting version and the completion time to the `(default)`
 database: `deployments/<commit>` for history and `deployments/current` for the live one. The
 Lab page shows `current`; Starfish reads the same document.
+
+## The rest of the shop
+
+| Function | What it does |
+| --- | --- |
+| `orders-searchOrders` | Orders by tag, newest first |
+| `orders-getOrder` | Order details, delivery or pickup |
+| `orders-cancelOrder` | Cancel an unpaid order; a gift card amount is given back |
+| `orders-applyGiftCard` | Check a gift card; checkout spends it. Gift wrap adds $5 |
+| `billing-createCheckoutSession` | Card payment through `PAYMENT_PROVIDER_URL` |
+| `payments-webhook` | Provider callback; HMAC-SHA256 signature in `x-signature`, secret `PAYMENT_WEBHOOK_SECRET` |
+| `accounts-onUserCreate` | Profile for email or phone sign-ups (first-generation: Auth's onCreate has no v2 form) |
+| `notifications-sendReceiptEmail` | Receipt through `MAIL_PROVIDER_URL`, key in secret `MAIL_PROVIDER_KEY` |
+| `reports-importCsv` | Team-only product import (`id,name,price`); one bad row rejects the file |
+| `reports-weeklyDigest` | Mondays 08:00 UTC (first-generation: scheduled through Pub/Sub) |
+| `reports-dailyRollup` | Daily totals into the `analytics` database |
+| `support-submitTicket` | Contact form |
+| `admin-backfillTotals` | 03:30 UTC: recompute order totals from their lines |
+| `misc-warmCache` | Every 10 minutes: catalog into one document the Shop reads |
+| `pdf-renderer` | Cloud Run service behind `invoices-renderPdf` (`PDF_RENDERER_URL`) |
+
+`shared/pricing.ts` is the only place money arithmetic lives; checkout, billing and the
+backfill all use it.
+
+### Set up before deploying these
+
+- Secrets: `firebase functions:secrets:set PAYMENT_WEBHOOK_SECRET` and `MAIL_PROVIDER_KEY`
+  (a functions deploy fails while a declared secret is missing).
+- `functions/.env.<project>`: `PAYMENT_PROVIDER_URL`, `MAIL_PROVIDER_URL`, `PDF_RENDERER_URL`.
+- The second database: `gcloud firestore databases create --database=analytics --location=<region>`.
+  Deploy its rules with `firebase deploy --only firestore:analytics`.
+- Let the functions' service account call the renderer:
+  `gcloud run services add-iam-policy-binding pdf-renderer --member=serviceAccount:<functions SA> --role=roles/run.invoker`.
+  The deploy workflow deploys `pdf-renderer` as a private service; its account also needs Cloud Build
+  and Cloud Run deploy roles.
+- Deploy indexes by hand (`firebase deploy --only firestore:indexes`, never `--force`): the tag
+  search needs the `(uid, tags, createdAt)` index.
