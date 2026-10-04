@@ -17,7 +17,7 @@ type Gate = { state: 'loading' } | { state: 'locked' } | { state: 'open'; user: 
 async function hasAccess(user: User): Promise<boolean> {
   if (!user.isAnonymous) {
     const token = await user.getIdTokenResult();
-    if (token.claims.team === true) return true;
+    if (token.claims.demoTeam === true) return true;
   }
   const grant = await getDoc(doc(db, 'accessGrants', user.uid));
   const expiresAt = grant.get('expiresAt') as { toMillis(): number } | undefined;

@@ -1,6 +1,7 @@
 import { TranslationServiceClient } from '@google-cloud/translate';
 import { defineString } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { getStorage } from 'firebase-admin/storage';
 import { GoogleAuth } from 'google-auth-library';
 import { needsTranslation, parseLanguage, splitTranslations, textsToTranslate } from '../../../shared/invoice';
 import type { InvoiceData } from '../../../pdf-renderer/src/types';
@@ -45,10 +46,17 @@ async function renderWithService(invoice: InvoiceData): Promise<Buffer> {
   return Buffer.from(res.data);
 }
 
+/** Every rendered invoice is kept in the project's invoices bucket, `<project>-demo-invoices`, written by the shop's runtime account. */
+async function storeInvoice(orderId: string, pdf: Buffer): Promise<void> {
+  const project = process.env.GCLOUD_PROJECT;
+  if (!project) throw new Error('GCLOUD_PROJECT is not set');
+  await getStorage().bucket(`${project}-demo-invoices`).file(`invoices/${orderId}.pdf`).save(pdf, { contentType: 'application/pdf' });
+}
+
 export const invoices = {
   /** Renders an order's invoice in the customer's language and returns the PDF as base64. */
   renderPdf: onCall(
-    tracked<{ orderId?: unknown; language?: unknown }, { pdfBase64: string; filename: string }>('invoices', async (req) => {
+    tracked<{ orderId?: unknown; language?: unknown }, { pdfBase64: string; filename: string }>('invoices-renderPdf', async (req) => {
       const uid = await requireGrant(req);
       const snap = await loadOwnOrder(req.data?.orderId, uid);
       const language = parseLanguage(req.data?.language ?? 'en');
@@ -60,7 +68,7 @@ export const invoices = {
         ? splitTranslations(await translate(texts, language), lines.length)
         : splitTranslations(texts, lines.length);
 
-      const pdf = await trackOutcome('pdfRenderer', () =>
+      const pdf = await trackOutcome('pdf-renderer', () =>
         renderWithService({
           orderId: snap.id,
           createdAt: (snap.get('createdAt') as { toDate(): Date }).toDate().toISOString(),
@@ -74,6 +82,7 @@ export const invoices = {
           names,
         }),
       );
+      await storeInvoice(snap.id, pdf);
       return { pdfBase64: pdf.toString('base64'), filename: `invoice-${snap.id}.pdf` };
     }),
   ),

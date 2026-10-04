@@ -1,11 +1,12 @@
 export interface Product {
+  /** The SKU, e.g. `sku-mug`. */
   id: string;
   name: string;
   priceCents: number;
 }
 
 export interface CartItem {
-  productId: string;
+  sku: string;
   qty: number;
 }
 
@@ -16,7 +17,14 @@ export interface OrderLine {
   qty: number;
 }
 
-export type Fulfillment = { type: 'delivery'; address: string } | { type: 'pickup'; location: string };
+export interface ShippingAddress {
+  line1: string;
+  city: string;
+  postalCode: string;
+  country: string;
+}
+
+export type Fulfillment = { type: 'delivery'; shippingAddress: ShippingAddress } | { type: 'pickup'; location: string };
 
 export type OrderStatus = 'placed' | 'cancelled';
 export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'failed';
@@ -29,30 +37,29 @@ export interface OrderSummary {
   giftWrapCents: number;
   giftCardCents: number;
   totalCents: number;
-  coupon: string | null;
+  couponCode: string | null;
   giftWrap: boolean;
+  giftNote: string | null;
   fulfillment: Fulfillment;
   tags: string[];
   status: OrderStatus;
   paymentStatus: PaymentStatus;
-  createdAtMs: number;
+  /** ISO 8601. */
+  createdAt: string;
 }
 
 export interface CreateOrderRequest {
   items: CartItem[];
-  coupon?: string;
+  couponCode?: string;
   giftCardCode?: string;
   giftWrap?: boolean;
-  fulfillment?: Fulfillment;
+  giftNote?: string;
+  /** Collect in store. Without it the order needs a `shippingAddress`. */
+  pickup?: boolean;
+  shippingAddress?: ShippingAddress;
   tags?: string[];
 }
 
-export interface Scenario {
-  id: string;
-  title: string;
-  state: string;
-  lastResult: string | null;
-}
 
 export interface ExportStatus {
   status: 'ready' | 'failed';

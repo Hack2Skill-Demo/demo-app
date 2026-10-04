@@ -75,8 +75,11 @@ function OrderDetails({ orderId, onChanged }: { orderId: string; onChanged: () =
   return (
     <div className="details">
       <p>
-        {order.fulfillment.type === 'delivery' ? `Delivery to ${order.fulfillment.address}` : `Pickup at ${order.fulfillment.location}`}
+        {order.fulfillment.type === 'delivery'
+          ? `Delivery to ${order.fulfillment.shippingAddress.line1}, ${order.fulfillment.shippingAddress.city}`
+          : `Pickup at ${order.fulfillment.location}`}
         {order.giftWrap && ' · gift wrapped'}
+        {order.giftNote && ` · note: “${order.giftNote}”`}
         {order.tags.length > 0 && ` · tags: ${order.tags.join(', ')}`}
       </p>
       <p>
@@ -168,11 +171,11 @@ export function Orders() {
       <ul className="orders">
         {orders?.map((o) => (
           <li key={o.id}>
-            <strong>{new Date(o.createdAtMs).toLocaleString()}</strong>
+            <strong>{new Date(o.createdAt).toLocaleString()}</strong>
             <span>{o.lines.map((l) => `${l.qty} × ${l.name}`).join(', ')}</span>
             <span>
               {money(o.subtotalCents - o.discountCents + o.giftWrapCents)}
-              {o.coupon && ` (coupon ${o.coupon})`}
+              {o.couponCode && ` (coupon ${o.couponCode})`}
               {o.status === 'cancelled' && ' · cancelled'}
             </span>
             <button onClick={() => setOpen(open === o.id ? null : o.id)}>{open === o.id ? 'Hide' : 'Details'}</button>

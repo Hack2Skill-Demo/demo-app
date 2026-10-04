@@ -1,7 +1,7 @@
 import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { GIFT_WRAP_CENTS } from '../../../shared/pricing';
-import type { CreateOrderRequest, Fulfillment, Product } from '../../../shared/types';
+import type { CreateOrderRequest, Product } from '../../../shared/types';
 import { call, db, errorMessage } from '../firebase';
 import { money } from '../format';
 
@@ -15,7 +15,8 @@ export function Shop({ onOrdered }: { onOrdered: () => void }) {
 
   const [giftWrap, setGiftWrap] = useState(false);
   const [delivery, setDelivery] = useState(false);
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState({ line1: '', city: '', postalCode: '', country: '' });
+  const [giftNote, setGiftNote] = useState('');
   const [tags, setTags] = useState('');
   const [cardCode, setCardCode] = useState('');
   const [cardBalance, setCardBalance] = useState<number | null>(null);
@@ -37,7 +38,7 @@ export function Shop({ onOrdered }: { onOrdered: () => void }) {
     fromCache()
       .catch(() => null)
       .then((cached) => cached ?? fromProducts())
-      .then(setProducts)
+      .then((all) => setProducts(all.filter((p) => typeof p.priceCents === 'number')))
       .catch((err) => setLoadError(errorMessage(err)));
   }, []);
 
@@ -63,11 +64,12 @@ export function Shop({ onOrdered }: { onOrdered: () => void }) {
     setError(null);
     try {
       const body: CreateOrderRequest = {
-        items: entries.map(([productId, qty]) => ({ productId, qty })),
-        ...(coupon.trim() ? { coupon: coupon.trim() } : {}),
+        items: entries.map(([sku, qty]) => ({ sku, qty })),
+        ...(coupon.trim() ? { couponCode: coupon.trim() } : {}),
         ...(cardBalance !== null ? { giftCardCode: cardCode } : {}),
         giftWrap,
-        fulfillment: (delivery ? { type: 'delivery', address } : { type: 'pickup', location: '' }) satisfies Fulfillment,
+        ...(giftWrap && giftNote.trim() ? { giftNote: giftNote.trim() } : {}),
+        ...(delivery ? { shippingAddress: address } : { pickup: true }),
         tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       };
       await call('orders-createOrder', body);
@@ -113,11 +115,21 @@ export function Shop({ onOrdered }: { onOrdered: () => void }) {
             <label>
               <input type="checkbox" checked={delivery} onChange={(e) => setDelivery(e.target.checked)} /> Deliver to me (otherwise pick up in store)
             </label>
-            {delivery && (
+            {giftWrap && (
               <label>
-                Delivery address
-                <input value={address} onChange={(e) => setAddress(e.target.value)} />
+                Gift note (optional)
+                <input value={giftNote} onChange={(e) => setGiftNote(e.target.value)} maxLength={300} />
               </label>
+            )}
+            {delivery && (
+              <>
+                {(['line1', 'city', 'postalCode', 'country'] as const).map((k) => (
+                  <label key={k}>
+                    {{ line1: 'Address', city: 'City', postalCode: 'Postal code', country: 'Country (2 letters)' }[k]}
+                    <input value={address[k]} maxLength={k === 'country' ? 2 : 120} onChange={(e) => setAddress({ ...address, [k]: e.target.value })} />
+                  </label>
+                ))}
+              </>
             )}
             <label>
               Tags (comma separated, optional)

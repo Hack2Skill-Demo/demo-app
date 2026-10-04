@@ -4,6 +4,26 @@ import type { ExportStatus, WeeklyDigest } from '../../../shared/types';
 import { auth, call, db, errorMessage } from '../firebase';
 import { money } from '../format';
 
+function RunExport() {
+  const [state, setState] = useState<{ kind: 'idle' | 'busy' } | { kind: 'started' | 'failed'; text: string }>({ kind: 'idle' });
+  const run = async () => {
+    setState({ kind: 'busy' });
+    try {
+      await call('reports-runNightlyExport');
+      setState({ kind: 'started', text: 'Export started. The result appears here in a moment.' });
+    } catch (err) {
+      setState({ kind: 'failed', text: errorMessage(err) });
+    }
+  };
+  return (
+    <p>
+      <button disabled={state.kind === 'busy'} onClick={() => void run()}>{state.kind === 'busy' ? 'Starting…' : 'Run export now'}</button>
+      {state.kind === 'started' && <span role="status"> {state.text}</span>}
+      {state.kind === 'failed' && <span role="alert" className="error"> Could not start the export: {state.text}</span>}
+    </p>
+  );
+}
+
 function Digest() {
   const [digest, setDigest] = useState<WeeklyDigest | null | undefined>(undefined);
   useEffect(
@@ -36,7 +56,7 @@ function CsvImport() {
   const [isTeam, setIsTeam] = useState(false);
   const [state, setState] = useState<{ kind: 'idle' | 'busy' } | { kind: 'done' | 'failed'; text: string }>({ kind: 'idle' });
   useEffect(() => {
-    void auth.currentUser?.getIdTokenResult().then((t) => setIsTeam(t.claims.team === true));
+    void auth.currentUser?.getIdTokenResult().then((t) => setIsTeam(t.claims.demoTeam === true));
   }, []);
   if (!isTeam) return null;
 
@@ -93,6 +113,7 @@ export function Reports() {
     <section>
       <h2>Reports</h2>
       <h3>Nightly export</h3>
+      <RunExport />
       {last === null && <p>No export has run yet.</p>}
       {last?.status === 'ready' && (
         <p>

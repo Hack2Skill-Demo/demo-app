@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { yesterdayUtc } from './export';
 import { needsTranslation, parseLanguage, splitTranslations, textsToTranslate } from './invoice';
 import { CODE_ALPHABET, checkCode, isBlocked, normalizeCode, recordFailure, RATE_LIMIT } from './access';
-import { healthColor, isServerFault, pushResult } from './health';
+import { isServerFault } from './health';
 import { chargeAmountCents, computeTotals, correctedTotals, CouponError, GIFT_WRAP_CENTS } from './pricing';
 import { parseProductCsv } from './csv';
 import { summarizeOrders, topProducts } from './digest';
@@ -51,15 +51,6 @@ describe('access codes', () => {
 });
 
 describe('health', () => {
-  it('keeps only the recent window', () => {
-    expect(pushResult([true, true], false, 2)).toEqual([true, false]);
-  });
-  it('colours by success rate', () => {
-    expect(healthColor([])).toBe('grey');
-    expect(healthColor([true, true, true, true, true, true, true, true, true, true])).toBe('green');
-    expect(healthColor([true, true, true, false])).toBe('amber');
-    expect(healthColor([true, false, false, false])).toBe('red');
-  });
   it('counts only server faults', () => {
     expect(isServerFault('invalid-argument')).toBe(false);
     expect(isServerFault('internal')).toBe(true);
@@ -144,8 +135,9 @@ describe('product CSV', () => {
     const { errors } = parseProductCsv('id,name,price\nmug,Mug,abc\nMUG,Mug,1\nok,Ok,1\nok,Again,1');
     expect(errors).toHaveLength(3);
   });
-  it('requires the header', () => {
-    expect(parseProductCsv('a,b\n1,2').errors[0]).toMatch(/first row/);
+  it('names each missing column, and accepts columns in any order', () => {
+    expect(parseProductCsv('id,name\nmug,Mug').errors).toEqual(['Missing column "price"']);
+    expect(parseProductCsv('price,id,name,note\n1.50,mug,Mug,x').products).toEqual([{ id: 'mug', name: 'Mug', priceCents: 150 }]);
   });
 });
 

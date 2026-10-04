@@ -5,7 +5,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "uid",
+          "fieldPath": "customerId",
           "order": "ASCENDING"
         },
         {
@@ -19,12 +19,22 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "uid",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "tags",
           "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
         },
         {
           "fieldPath": "createdAt",

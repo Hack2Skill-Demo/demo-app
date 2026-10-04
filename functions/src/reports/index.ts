@@ -3,14 +3,15 @@ import { logger } from 'firebase-functions/v2';
 import * as v1 from 'firebase-functions/v1';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { GoogleAuth } from 'google-auth-library';
 import { Timestamp } from 'firebase-admin/firestore';
 import { parseProductCsv } from '../../../shared/csv';
 import { summarizeOrders, topProducts, type DigestOrder } from '../../../shared/digest';
 import { yesterdayUtc } from '../../../shared/export';
 import { analyticsDb, db } from '../lib/firebase';
-import { requireTeam } from '../lib/guards';
+import { requireGrant, requireTeam } from '../lib/guards';
 import { fetchJson } from '../lib/http';
-import { record, trackOutcome, tracked } from '../lib/track';
+import { trackOutcome, tracked } from '../lib/track';
 
 /** Where the nightly export is delivered. Set per deployment in functions/.env.<project>. */
 const exportUrl = defineString('EXPORT_UPSTREAM_URL', { default: '' });
@@ -36,9 +37,8 @@ export async function runNightlyExport(nowMs: number): Promise<void> {
       timeoutMs: UPSTREAM_DEADLINE_MS,
     });
     await status.set({ status: 'ready', forDate: date, orderCount: orders.length, finishedAt: Timestamp.now(), error: null });
-    await record('nightlyExport', true);
   } catch (err) {
-    logger.error('nightly export failed', { date, err });
+    logger.error(`nightly export failed: ${err instanceof Error ? err.message : String(err)}`, { date });
     await status.set({
       status: 'failed',
       forDate: date,
@@ -46,7 +46,6 @@ export async function runNightlyExport(nowMs: number): Promise<void> {
       finishedAt: Timestamp.now(),
       error: err instanceof Error ? err.message : String(err),
     });
-    await record('nightlyExport', false);
     throw err;
   }
 }
@@ -55,10 +54,13 @@ const MAX_CSV_BYTES = 200 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function ordersBetween(startMs: number, endMs: number): Promise<DigestOrder[]> {
+  // Placed orders only: this is the (status, createdAt desc) index.
   const snap = await db
     .collection('orders')
+    .where('status', '==', 'placed')
     .where('createdAt', '>=', Timestamp.fromMillis(startMs))
     .where('createdAt', '<', Timestamp.fromMillis(endMs))
+    .orderBy('createdAt', 'desc')
     .get();
   return snap.docs.map((d) => ({
     status: (d.get('status') as string | undefined) ?? 'placed',
@@ -96,10 +98,33 @@ export async function runDailyRollup(nowMs: number): Promise<void> {
   });
 }
 
+const REGION = 'us-central1';
+
+/**
+ * Start one export now. A scheduled function cannot be called, so this asks Cloud Scheduler to run the function's own
+ * job: the export then runs, and logs, as `reports-nightlyExport`. Needs `cloudscheduler.jobs.run` (roles/cloudscheduler.jobRunner).
+ */
+async function runExportJobNow(): Promise<void> {
+  const project = process.env.GCLOUD_PROJECT;
+  if (!project) throw new Error('GCLOUD_PROJECT is not set');
+  const client = await new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' }).getClient();
+  const job = `projects/${project}/locations/${REGION}/jobs/firebase-schedule-reports-nightlyExport-${REGION}`;
+  await client.request({ url: `https://cloudscheduler.googleapis.com/v1/${job}:run`, method: 'POST', data: {} });
+}
+
 export const reports = {
+  /** Starts one export run now and returns at once; the Reports page shows how it ended. */
+  runNightlyExport: onCall(
+    tracked<unknown, { started: true }>('reports-runNightlyExport', async (req) => {
+      await requireGrant(req);
+      await runExportJobNow();
+      return { started: true };
+    }),
+  ),
+
   /** Team-only bulk product import. A bad row rejects the whole file so nothing half-imports. */
   importCsv: onCall(
-    tracked<{ csv?: unknown }, { imported: number }>('csvImport', async (req) => {
+    tracked<{ csv?: unknown; filename?: unknown }, { imported: number }>('reports-importCsv', async (req) => {
       requireTeam(req);
       const csv = req.data?.csv;
       if (typeof csv !== 'string' || csv.length === 0) throw new HttpsError('invalid-argument', 'Choose a CSV file');
