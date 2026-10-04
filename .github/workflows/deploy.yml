@@ -1,0 +1,67 @@
+name: Deploy
+
+# Every merge to main goes live without anyone running a deploy. Functions (the `demo` codebase) and the
+# shop's Hosting site only. Firestore rules and indexes are never deployed from here, and certainly never
+# with --force: the project is shared with Starfish.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run verify
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Keyless: set the repository secrets GCP_WORKLOAD_IDENTITY_PROVIDER and GCP_SERVICE_ACCOUNT.
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Read the Hosting site from firebase.json
+        run: echo "HOSTING_SITE=$(node -p "require('./firebase.json').hosting.site")" >> "$GITHUB_ENV"
+
+      # Firebase skips functions whose source is unchanged, so only changed functions are redeployed.
+      - name: Deploy functions and Hosting
+        run: >
+          pnpm dlx firebase-tools@latest deploy
+          --project "$FIREBASE_PROJECT_ID"
+          --only "functions:demo,hosting:$HOSTING_SITE"
+          --non-interactive
+
+      - name: Record the live commit
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+        run: pnpm --filter demo-functions exec node scripts/record-deploy.mjs
