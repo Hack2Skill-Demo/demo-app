@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { yesterdayUtc } from './export';
+import { needsTranslation, parseLanguage, splitTranslations, textsToTranslate, toDrawable } from './invoice';
 import { CODE_ALPHABET, checkCode, isBlocked, normalizeCode, recordFailure, RATE_LIMIT } from './access';
 import { healthColor, isServerFault, pushResult } from './health';
 import { computeTotals, CouponError } from './pricing';
@@ -60,5 +62,39 @@ describe('health', () => {
     expect(isServerFault('invalid-argument')).toBe(false);
     expect(isServerFault('internal')).toBe(true);
     expect(isServerFault(undefined)).toBe(true);
+  });
+});
+
+describe('invoice text', () => {
+  const line = { productId: 'a', name: 'Mug', priceCents: 1, qty: 1 };
+  it('only parses plain language tags', () => {
+    expect(parseLanguage('fr')).toBe('fr');
+    expect(parseLanguage('pt-BR')).toBe('pt-BR');
+    expect(parseLanguage('../etc')).toBeNull();
+    expect(parseLanguage(5)).toBeNull();
+  });
+  it('skips translation for English only', () => {
+    expect(needsTranslation('en')).toBe(false);
+    expect(needsTranslation('en-GB')).toBe(false);
+    expect(needsTranslation('fil')).toBe(true);
+  });
+  it('round-trips labels and names', () => {
+    const texts = textsToTranslate([line]);
+    const { labels, names } = splitTranslations(texts.map((t) => t.toUpperCase()), 1);
+    expect(labels.Total).toBe('TOTAL');
+    expect(names).toEqual(['MUG']);
+    expect(() => splitTranslations(['x'], 1)).toThrow();
+  });
+  it('replaces characters a font cannot draw', () => {
+    expect(toDrawable('aé日', new Set([97, 233]))).toBe('aé?');
+  });
+});
+
+describe('yesterdayUtc', () => {
+  it('covers the whole previous UTC day', () => {
+    const r = yesterdayUtc(Date.UTC(2026, 9, 4, 2, 30));
+    expect(r.date).toBe('2026-10-03');
+    expect(r.endMs - r.startMs).toBe(86_400_000);
+    expect(new Date(r.endMs).toISOString()).toBe('2026-10-04T00:00:00.000Z');
   });
 });

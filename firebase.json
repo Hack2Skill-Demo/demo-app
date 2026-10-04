@@ -8,7 +8,7 @@
     {
       "source": "functions",
       "codebase": "demo",
-      "ignore": ["node_modules", ".git", "*.log"],
+      "ignore": ["node_modules", ".git", "*.log", "scripts"],
       "predeploy": ["pnpm --filter demo-functions run build"]
     }
   ],

@@ -65,3 +65,28 @@ Scenarios are loaded at runtime from the demo controller, whose base URL is the
 `POST /scenarios/run`; a press sends only `{ "scenarioId": "…" }`. The health strip has one
 dot per shop feature, coloured from the success rate of its last 20 calls (visitor
 mistakes such as a wrong code or an expired coupon don't count).
+
+## Invoices and the nightly export
+
+- **Invoices:** "Download invoice" on an order calls `invoices-renderPdf`, which translates the
+  labels and line items into the browser's language with the Cloud Translation API (English
+  skips the call), draws the PDF and returns it. If anything fails the order shows
+  "Invoice unavailable". The Cloud Translation API must be enabled in the project.
+- **Nightly export:** `reports-nightlyExport` runs at 02:00 UTC, POSTs yesterday's orders as
+  JSON to `EXPORT_UPSTREAM_URL` with a 10-second deadline and writes the outcome to
+  `exports/last`. The Reports page shows it as ready or failed.
+
+## Deploy on merge
+
+`.github/workflows/deploy.yml` runs on every push to `main`: `pnpm run verify`, then
+`firebase deploy --only functions:demo,hosting:<site>` (unchanged functions are skipped).
+It never deploys Firestore rules or indexes. Set up once:
+
+- repository variable `FIREBASE_PROJECT_ID`;
+- repository secrets `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`, a service
+  account allowed to deploy Functions and Hosting and to write Firestore.
+
+After a successful deploy `functions/scripts/record-deploy.mjs` writes the commit, the Cloud Run
+revision of each function, the Hosting version and the completion time to the `(default)`
+database: `deployments/<commit>` for history and `deployments/current` for the live one. The
+Lab page shows `current`; Starfish reads the same document.

@@ -1,8 +1,8 @@
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import { FEATURES } from '../../../shared/features';
 import { healthColor } from '../../../shared/health';
-import type { Scenario } from '../../../shared/types';
+import type { DeploymentRecord, Scenario } from '../../../shared/types';
 import { call, db, errorMessage } from '../firebase';
 
 function HealthStrip() {
@@ -31,6 +31,34 @@ function HealthStrip() {
         );
       })}
     </ul>
+  );
+}
+
+/** Which commit is live, from the record the deploy pipeline writes. */
+function LiveCommit() {
+  const [live, setLive] = useState<DeploymentRecord | null | undefined>(undefined);
+
+  useEffect(
+    () =>
+      onSnapshot(
+        doc(db, 'deployments', 'current'),
+        (snap) =>
+          setLive(
+            snap.exists()
+              ? { commit: String(snap.get('commit')), deployedAtMs: (snap.get('deployedAt') as { toMillis(): number }).toMillis() }
+              : null,
+          ),
+        () => setLive(null),
+      ),
+    [],
+  );
+
+  if (live === undefined) return null;
+  if (live === null) return <p>Live commit: unknown</p>;
+  return (
+    <p>
+      Live commit: <code>{live.commit.slice(0, 7)}</code> since {new Date(live.deployedAtMs).toLocaleString()}
+    </p>
   );
 }
 
@@ -66,6 +94,7 @@ export function Lab() {
     <section>
       <h2>Lab</h2>
       <HealthStrip />
+      <LiveCommit />
       {error && (
         <div role="alert" className="error">
           <p>Could not load the scenarios: {error}</p>

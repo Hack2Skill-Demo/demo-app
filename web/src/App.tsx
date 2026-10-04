@@ -5,9 +5,11 @@ import { auth, db } from './firebase';
 import { EntryScreen } from './pages/EntryScreen';
 import { Lab } from './pages/Lab';
 import { Orders } from './pages/Orders';
+import { Reports } from './pages/Reports';
 import { Shop } from './pages/Shop';
 
-type Page = 'shop' | 'orders' | 'lab';
+type Page = 'shop' | 'orders' | 'reports' | 'lab';
+const LABELS: Record<Page, string> = { shop: 'Shop', orders: 'My orders', reports: 'Reports', lab: 'Lab' };
 type Gate = { state: 'loading' } | { state: 'locked' } | { state: 'open'; user: User };
 
 /** A browser is unlocked while it holds an unexpired grant, or when a team member is signed in. */
@@ -43,9 +45,9 @@ export function App() {
       <header>
         <h1>Demo Shop</h1>
         <nav>
-          {(['shop', 'orders', 'lab'] as const).map((p) => (
+          {(Object.keys(LABELS) as Page[]).map((p) => (
             <button key={p} aria-current={page === p} onClick={() => setPage(p)}>
-              {p === 'shop' ? 'Shop' : p === 'orders' ? 'My orders' : 'Lab'}
+              {LABELS[p]}
             </button>
           ))}
           <button onClick={() => void signOut(auth)}>Leave</button>
@@ -54,6 +56,7 @@ export function App() {
       <main>
         {page === 'shop' && <Shop onOrdered={() => setPage('orders')} />}
         {page === 'orders' && <Orders />}
+        {page === 'reports' && <Reports />}
         {page === 'lab' && <Lab />}
       </main>
     </div>

@@ -24,6 +24,12 @@ service cloud.firestore {
     match /featureHealth/{id} {
       allow read: if granted();
     }
+    match /exports/{id} {
+      allow read: if granted();
+    }
+    match /deployments/{id} {
+      allow read: if granted();
+    }
 
     // Everything else (orders, codes, rate limits, coupons) is reached only through functions.
     match /{document=**} {

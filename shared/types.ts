@@ -37,3 +37,17 @@ export interface Scenario {
   state: string;
   lastResult: string | null;
 }
+
+export interface ExportStatus {
+  status: 'ready' | 'failed';
+  /** The day exported, as YYYY-MM-DD (UTC). */
+  forDate: string;
+  orderCount: number;
+  finishedAtMs: number;
+  error: string | null;
+}
+
+export interface DeploymentRecord {
+  commit: string;
+  deployedAtMs: number;
+}

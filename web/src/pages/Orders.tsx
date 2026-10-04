@@ -3,6 +3,41 @@ import type { OrderSummary } from '../../../shared/types';
 import { call, errorMessage } from '../firebase';
 import { money } from '../format';
 
+function InvoiceButton({ orderId }: { orderId: string }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle');
+
+  const download = async () => {
+    setState('busy');
+    try {
+      const { pdfBase64, filename } = await call<{ orderId: string; language: string }, { pdfBase64: string; filename: string }>(
+        'invoices-renderPdf',
+        { orderId, language: navigator.language || 'en' },
+      );
+      const bytes = Uint8Array.from(atob(pdfBase64), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      setState('idle');
+    } catch {
+      setState('failed');
+    }
+  };
+
+  return (
+    <span>
+      <button disabled={state === 'busy'} onClick={() => void download()}>
+        {state === 'busy' ? 'Preparing…' : 'Download invoice'}
+      </button>
+      {state === 'failed' && (
+        <span role="alert" className="error"> Invoice unavailable. Try again later.</span>
+      )}
+    </span>
+  );
+}
+
 export function Orders() {
   const [orders, setOrders] = useState<OrderSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +72,7 @@ export function Orders() {
             {money(o.totalCents)}
             {o.coupon && ` (coupon ${o.coupon})`}
           </span>
+          <InvoiceButton orderId={o.id} />
         </li>
       ))}
     </ul>

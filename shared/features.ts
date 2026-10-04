@@ -4,6 +4,8 @@ export const FEATURES = [
   { id: 'catalog', label: 'Products' },
   { id: 'checkout', label: 'Checkout' },
   { id: 'recentOrders', label: 'Recent orders' },
+  { id: 'invoices', label: 'Invoices' },
+  { id: 'nightlyExport', label: 'Nightly export' },
   { id: 'lab', label: 'Lab' },
 ] as const;
 
