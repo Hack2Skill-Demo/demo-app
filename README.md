@@ -45,9 +45,10 @@ cp functions/.env.example functions/.env.<project-id>   # upstream URLs
 pnpm run verify
 ```
 
-Set `VITE_USE_EMULATORS=true` to run against the Firebase emulators. `firebase.json` uses
-the Hosting site `demo-app-shop` and project `demo-app-shop`; change both in `firebase.json`
-and `.firebaserc` to match the real project.
+Set `VITE_USE_EMULATORS=true` to run against the Firebase emulators. `firebase.json` deploys to the
+project `hack2skill-demo` and its default Hosting site, `hack2skill-demo`
+(https://hack2skill-demo.web.app). The project is shared with Starfish, so Starfish must deploy to a Hosting site of its
+own; two deploys to one site overwrite each other.
 
 ## Access and the demo controller
 
