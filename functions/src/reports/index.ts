@@ -54,22 +54,23 @@ const MAX_CSV_BYTES = 200 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function ordersBetween(startMs: number, endMs: number): Promise<DigestOrder[]> {
-  // Placed orders only: this is the (status, createdAt desc) index.
+  // The range on createdAt is served by its own single-field index; placed orders are picked out here.
   const snap = await db
     .collection('orders')
-    .where('status', '==', 'placed')
     .where('createdAt', '>=', Timestamp.fromMillis(startMs))
     .where('createdAt', '<', Timestamp.fromMillis(endMs))
     .orderBy('createdAt', 'desc')
     .get();
-  return snap.docs.map((d) => ({
-    status: (d.get('status') as string | undefined) ?? 'placed',
-    lines: d.get('lines') as DigestOrder['lines'],
-    subtotalCents: d.get('subtotalCents') as number,
-    discountCents: d.get('discountCents') as number,
-    giftWrapCents: (d.get('giftWrapCents') as number | undefined) ?? 0,
-    country: d.get('fulfillment.shippingAddress.country') as string | undefined,
-  }));
+  return snap.docs
+    .filter((d) => d.get('status') === 'placed')
+    .map((d) => ({
+      status: 'placed',
+      lines: d.get('lines') as DigestOrder['lines'],
+      subtotalCents: d.get('subtotalCents') as number,
+      discountCents: d.get('discountCents') as number,
+      giftWrapCents: (d.get('giftWrapCents') as number | undefined) ?? 0,
+      country: d.get('fulfillment.shippingAddress.country') as string | undefined,
+    }));
 }
 
 /** The seven days up to now. */
