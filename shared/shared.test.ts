@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { yesterdayUtc } from './export';
-import { needsTranslation, parseLanguage, splitTranslations, textsToTranslate, toDrawable } from './invoice';
+import { needsTranslation, parseLanguage, splitTranslations, textsToTranslate } from './invoice';
 import { CODE_ALPHABET, checkCode, isBlocked, normalizeCode, recordFailure, RATE_LIMIT } from './access';
 import { healthColor, isServerFault, pushResult } from './health';
-import { computeTotals, CouponError } from './pricing';
+import { chargeAmountCents, computeTotals, correctedTotals, CouponError, GIFT_WRAP_CENTS } from './pricing';
+import { parseProductCsv } from './csv';
+import { summarizeOrders, topProducts } from './digest';
 
 describe('pricing', () => {
   const lines = [
@@ -11,7 +13,7 @@ describe('pricing', () => {
     { priceCents: 500, qty: 1 },
   ];
   it('sums lines in cents', () => {
-    expect(computeTotals(lines, null, 0)).toEqual({ subtotalCents: 4498, discountCents: 0, totalCents: 4498 });
+    expect(computeTotals(lines, null, 0)).toEqual({ subtotalCents: 4498, discountCents: 0, giftWrapCents: 0, giftCardCents: 0, totalCents: 4498 });
   });
   it('applies a percentage coupon, rounded to the cent', () => {
     const t = computeTotals(lines, { percentOff: 15, expiresAtMs: null }, 0);
@@ -85,9 +87,6 @@ describe('invoice text', () => {
     expect(names).toEqual(['MUG']);
     expect(() => splitTranslations(['x'], 1)).toThrow();
   });
-  it('replaces characters a font cannot draw', () => {
-    expect(toDrawable('aé日', new Set([97, 233]))).toBe('aé?');
-  });
 });
 
 describe('yesterdayUtc', () => {
@@ -96,5 +95,74 @@ describe('yesterdayUtc', () => {
     expect(r.date).toBe('2026-10-03');
     expect(r.endMs - r.startMs).toBe(86_400_000);
     expect(new Date(r.endMs).toISOString()).toBe('2026-10-04T00:00:00.000Z');
+  });
+});
+
+describe('gift wrap and gift cards', () => {
+  const lines = [{ priceCents: 2000, qty: 1 }];
+  it('adds the wrap fee and lets a card pay part of the bill', () => {
+    const t = computeTotals(lines, null, 0, { giftWrap: true, giftCardBalanceCents: 1000 });
+    expect(t).toMatchObject({ giftWrapCents: GIFT_WRAP_CENTS, giftCardCents: 1000, totalCents: 1500 });
+  });
+  it('never charges a card for more than the bill', () => {
+    const t = computeTotals(lines, null, 0, { giftCardBalanceCents: 99_999 });
+    expect(t).toMatchObject({ giftCardCents: 2000, totalCents: 0 });
+  });
+});
+
+describe('correctedTotals', () => {
+  const order = { lines: [{ priceCents: 1000, qty: 2 }], discountCents: 0, subtotalCents: 2000, totalCents: 2000 };
+  it('returns null for a consistent order', () => {
+    expect(correctedTotals(order)).toBeNull();
+    expect(chargeAmountCents(order)).toBe(2000);
+  });
+  it('fixes a drifted total and refuses to bill it', () => {
+    const drifted = { ...order, totalCents: 1500 };
+    expect(correctedTotals(drifted)).toEqual({ subtotalCents: 2000, discountCents: 0, totalCents: 2000 });
+    expect(() => chargeAmountCents(drifted)).toThrow();
+  });
+  it('recomputes the discount only when the coupon percentage was stored', () => {
+    expect(correctedTotals({ ...order, couponPercentOff: 10, discountCents: 0 })).toEqual({
+      subtotalCents: 2000,
+      discountCents: 200,
+      totalCents: 1800,
+    });
+    expect(correctedTotals({ ...order, discountCents: 300, totalCents: 1700 })).toBeNull();
+  });
+});
+
+describe('product CSV', () => {
+  it('parses quoted fields and prices', () => {
+    const { products, errors } = parseProductCsv('id,name,price\r\nmug,"Mug, enamel",14.00\nsticker,Sticker,0.5\n');
+    expect(errors).toEqual([]);
+    expect(products).toEqual([
+      { id: 'mug', name: 'Mug, enamel', priceCents: 1400 },
+      { id: 'sticker', name: 'Sticker', priceCents: 50 },
+    ]);
+  });
+  it('rejects the whole file when any row is bad', () => {
+    const { errors } = parseProductCsv('id,name,price\nmug,Mug,abc\nMUG,Mug,1\nok,Ok,1\nok,Again,1');
+    expect(errors).toHaveLength(3);
+  });
+  it('requires the header', () => {
+    expect(parseProductCsv('a,b\n1,2').errors[0]).toMatch(/first row/);
+  });
+});
+
+describe('sales summaries', () => {
+  const o = (status: string, qty: number, subtotalCents: number, discountCents = 0) => ({
+    status,
+    lines: [{ productId: 'mug', name: 'Mug', qty }],
+    subtotalCents,
+    discountCents,
+  });
+  it('leaves cancelled orders out', () => {
+    expect(summarizeOrders([o('placed', 2, 2000, 200), o('cancelled', 5, 9999)])).toEqual({
+      orderCount: 1,
+      units: 2,
+      revenueCents: 1800,
+      discountCents: 200,
+    });
+    expect(topProducts([o('placed', 2, 1), o('cancelled', 5, 1)])).toEqual([{ productId: 'mug', name: 'Mug', units: 2 }]);
   });
 });

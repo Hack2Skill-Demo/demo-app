@@ -24,6 +24,12 @@ service cloud.firestore {
     match /featureHealth/{id} {
       allow read: if granted();
     }
+    match /cache/{id} {
+      allow read: if granted();
+    }
+    match /reports/{id} {
+      allow read: if granted();
+    }
     match /exports/{id} {
       allow read: if granted();
     }

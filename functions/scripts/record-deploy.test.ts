@@ -13,7 +13,11 @@ describe('record-deploy', () => {
       { name: 'projects/p/locations/us-central1/services/orders-createorder', latestReadyRevision: 'projects/p/locations/us-central1/services/orders-createorder/revisions/orders-createorder-00007-abc' },
       { name: 'projects/p/locations/us-central1/services/starfish-ingest', latestReadyRevision: 'x/revisions/starfish-ingest-00002-zzz' },
       { name: 'projects/p/locations/us-central1/services/reports-nightlyexport' },
+      { name: 'projects/p/locations/us-central1/services/pdf-renderer', latestReadyRevision: 'x/revisions/pdf-renderer-00003-qqq' },
     ];
-    expect(pickRevisions(services, ['orders', 'reports'])).toEqual({ 'orders-createorder': 'orders-createorder-00007-abc' });
+    expect(pickRevisions(services, ['orders', 'reports'])).toEqual({
+      'orders-createorder': 'orders-createorder-00007-abc',
+      'pdf-renderer': 'pdf-renderer-00003-qqq',
+    });
   });
 });

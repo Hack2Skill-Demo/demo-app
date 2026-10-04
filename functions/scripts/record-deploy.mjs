@@ -14,12 +14,16 @@ export function groupsFromIndex(source) {
   return [...source.matchAll(/^export \{ (\w+) \} from /gm)].map((m) => m[1]);
 }
 
+/** Cloud Run services this repo deploys besides functions. */
+const OWN_SERVICES = ['pdf-renderer'];
+
 /** Cloud Run service ids are the lower-cased function ids. Only this codebase's groups are ours; Starfish's functions share the project. */
 export function pickRevisions(services, groups) {
   const out = {};
   for (const svc of services) {
     const id = svc.name.split('/').pop();
-    if (groups.some((g) => id.startsWith(`${g.toLowerCase()}-`)) && svc.latestReadyRevision) {
+    const ours = OWN_SERVICES.includes(id) || groups.some((g) => id.startsWith(`${g.toLowerCase()}-`));
+    if (ours && svc.latestReadyRevision) {
       out[id] = svc.latestReadyRevision.split('/').pop();
     }
   }

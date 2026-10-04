@@ -1,0 +1,10 @@
+rules_version = '2';
+
+// The shop's `analytics` database holds reporting data written by functions. No client may touch it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
