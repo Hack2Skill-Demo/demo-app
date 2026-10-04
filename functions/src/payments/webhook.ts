@@ -12,7 +12,13 @@ const webhookSecret = defineSecret('PAYMENT_WEBHOOK_SECRET');
 /** The payment provider's callback. Nothing is believed until its signature checks out. */
 export const webhook = onRequest({ secrets: [webhookSecret] }, async (req, res) => {
     if (req.method !== 'POST') return void res.status(405).send('POST only');
-    if (!verifySignature(req.rawBody, req.header('x-signature'), webhookSecret.value())) {
+    let signed: boolean;
+    try {
+      signed = await trackOutcome('payments-webhook', async () => verifySignature(req.rawBody, req.header('x-signature'), webhookSecret.value()));
+    } catch {
+      return void res.status(500).send('Try again');
+    }
+    if (!signed) {
       logger.warn('payment webhook with a bad signature');
       return void res.status(401).send('Bad signature');
     }
