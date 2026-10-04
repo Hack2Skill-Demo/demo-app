@@ -51,8 +51,8 @@ and `.firebaserc` to match the real project.
 
 ## Access and the demo controller
 
-The shop works with [`demo-control`](https://github.com/Hack2Skill-Demo/demo-control), the private repo behind the Lab
-buttons. They meet at these points:
+The Lab page is backed by a separate demo controller that is deployed to the same Firebase project from its own repo.
+They meet at these points:
 
 - **Claims.** A visitor enters an access code once; the browser signs in anonymously and `access-redeemCode` trades the
   code for a grant and the custom claim `demoAccessCodeId` (the code's id, never the code). A team member carries
@@ -60,7 +60,7 @@ buttons. They meet at these points:
   Revoking a code (`access-revokeCode`) ends its grants and revokes the refresh tokens of every account it opened.
   Codes are random, expire, are rate-limited (5 wrong tries per 10 minutes) and only their SHA-256 hash is stored.
 - **The Lab page** calls `control-getScenarios`, `control-getState`, `control-getHealth` and
-  `control-triggerFault({ scenarioId })`, deployed from `demo-control`, and nothing else. The health strip is drawn from
+  `control-triggerFault({ scenarioId })`, and nothing else. The health strip is drawn from
   `control-getHealth`.
 - **Seed data.** A team member calls `catalog-seed({ confirm: true })` once: SKUs (`sku-mug`, `sku-tote`, `sku-poster`,
   `sku-sticker-pack`, `sku-cable-3m`, and `sku-sample-free`, which has no price on purpose), coupons `WELCOME10` and
@@ -68,11 +68,11 @@ buttons. They meet at these points:
 - **Order shape.** `orders-createOrder` takes `{ items: [{ sku, qty }], couponCode?, giftWrap?, giftNote?, giftCardCode?,
   tags?, pickup? | shippingAddress? }` and returns `{ orderId }`. Orders carry `customerId`, which the
   `(customerId, createdAt desc)` index serves.
-- **Indexes** in `firestore.indexes.json` match demo-control's targets: `(customerId, createdAt desc)` for recent orders,
+- **Indexes** in `firestore.indexes.json` match the queries the functions run: `(customerId, createdAt desc)` for recent orders,
   `(tags array-contains, createdAt desc)` for tag search, and `(status, createdAt desc)` for the digest and rollup.
 - **Runtime account.** Functions run as `demo-functions@<project>`; invoices are also written to the bucket
   `<project>-demo-invoices`.
-- **Lint.** `ignoreUndefinedProperties` is banned (`eslint.config.js`). It is part of the baseline, not a fault.
+- **Lint.** `ignoreUndefinedProperties` is banned (`eslint.config.js`); leave an undefined field out of the document instead.
 
 ## Invoices and the nightly export
 
@@ -128,7 +128,7 @@ backfill all use it.
 
 - Secrets: `firebase functions:secrets:set PAYMENT_WEBHOOK_SECRET` and `MAIL_PROVIDER_KEY`
   (a functions deploy fails while a declared secret is missing).
-- `functions/.env.<project>`: `PAYMENT_PROVIDER_URL`, `MAIL_PROVIDER_URL`, `PDF_RENDERER_URL`, `EXPORT_UPSTREAM_URL` (the payment, mail and export URLs are demo-control's stubs).
+- `functions/.env.<project>`: `PAYMENT_PROVIDER_URL`, `MAIL_PROVIDER_URL`, `PDF_RENDERER_URL`, `EXPORT_UPSTREAM_URL` (the payment, mail and export URLs point at the demo's stand-in services).
 - A service account `demo-functions@<project>` for the shop's functions, with Firestore, Storage, Translation and
   Cloud Scheduler job-runner access (`reports-runNightlyExport` runs the scheduled export's job).
 - A bucket `<project>-demo-invoices`.

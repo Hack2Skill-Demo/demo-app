@@ -1,6 +1,6 @@
 import { setGlobalOptions } from 'firebase-functions/v2';
 
-// The shop's functions run as demo-functions@<project>, the account demo-control's scenarios grant to and take from.
+// The shop's functions run as demo-functions@<project>, a dedicated account for the shop.
 setGlobalOptions({ region: 'us-central1', maxInstances: 10, serviceAccount: 'demo-functions' });
 
 // Grouped exports deploy as `<group>-<name>`, e.g. `orders-createOrder`.

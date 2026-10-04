@@ -1,4 +1,4 @@
-/** Types of what the demo controller's `control-*` callables return (demo-control, src/controller/read.ts and health.ts). */
+/** Types of what the demo controller's `control-*` callables return. */
 export interface ScenarioView {
   id: string;
   title: string;
