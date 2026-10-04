@@ -1,0 +1,6 @@
+packages:
+  - web
+  - functions
+onlyBuiltDependencies:
+  - esbuild
+  - protobufjs

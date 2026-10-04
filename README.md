@@ -5,8 +5,7 @@ recent orders, download an invoice. It is the application [Starfish](https://git
 watches in its public demo: Starfish reads this app's error logs and opens pull requests
 against this repository.
 
-> **Status: not built yet.** This repository holds no application code so far. The design is
-> in the Starfish repo, `docs/design/demo-app.md`.
+The design is in the Starfish repo, `docs/design/demo-app.md`.
 
 ## How it shares a Firebase project with Starfish
 
@@ -22,8 +21,47 @@ from breaking the other, and they apply from the first commit:
   database, and never deploy `firestore.indexes.json` with `--force`, which deletes
   indexes that aren't in the file.
 
-## Planned stack
+## Stack and layout
 
 TypeScript, pnpm, React 19 + Vite, Firebase gen2 Functions on Node 22, Firestore. The same
-stack as Starfish's operator UI. `pnpm run verify` (lint, typecheck, test, build) will be
-the gate every change, including Starfish's, has to pass.
+stack as Starfish's operator UI. `pnpm run verify` (lint, typecheck, test, build) is the
+gate every change, including Starfish's, has to pass; CI runs it on every pull request.
+
+| Path | What it is |
+| --- | --- |
+| `web/` | The shop (React + Vite), deployed to its own Hosting site |
+| `functions/` | Callable functions as grouped exports, deployed as `orders-createOrder` and so on |
+| `shared/` | Pure code used by both: pricing, access-code rules, feature health |
+| `firestore.rules`, `firestore.indexes.json` | Rules and indexes for the `(default)` database |
+
+## Running it
+
+```sh
+pnpm install
+cp web/.env.example web/.env.local          # fill in the Firebase web config
+cp functions/.env.example functions/.env.<project-id>   # DEMO_CONTROLLER_URL
+pnpm run verify
+```
+
+Set `VITE_USE_EMULATORS=true` to run against the Firebase emulators. `firebase.json` uses
+the Hosting site `demo-app-shop` and project `demo-app-shop`; change both in `firebase.json`
+and `.firebaserc` to match the real project.
+
+## Access
+
+- **Visitors** enter an access code once. The browser signs in anonymously and
+  `access-redeemCode` trades the code for a grant that lasts until the code expires. Codes
+  are random, expire, can be revoked, are rate-limited (5 wrong tries per 10 minutes) and
+  only their SHA-256 hash is stored.
+- **Team members** sign in with Firebase Auth email and password. Give an account the
+  custom claim `team: true` (Admin SDK `setCustomUserClaims`) to let it create and revoke
+  codes with `access-createCode` and `access-revokeCode`, and call `catalog-seed` once to
+  load sample products and a `WELCOME10` coupon.
+
+## The Lab page
+
+Scenarios are loaded at runtime from the demo controller, whose base URL is the
+`DEMO_CONTROLLER_URL` parameter. The controller serves `GET /scenarios` and
+`POST /scenarios/run`; a press sends only `{ "scenarioId": "…" }`. The health strip has one
+dot per shop feature, coloured from the success rate of its last 20 calls (visitor
+mistakes such as a wrong code or an expired coupon don't count).

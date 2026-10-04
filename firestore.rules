@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Applies to the shop's (default) database only. Starfish's `starfish` database has its own rules, in its own repo.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function granted() {
+      return signedIn() && (
+        request.auth.token.team == true ||
+        (exists(/databases/$(database)/documents/accessGrants/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/accessGrants/$(request.auth.uid)).data.expiresAt > request.time)
+      );
+    }
+
+    match /accessGrants/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+    }
+    match /products/{id} {
+      allow read: if granted();
+    }
+    match /featureHealth/{id} {
+      allow read: if granted();
+    }
+
+    // Everything else (orders, codes, rate limits, coupons) is reached only through functions.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
