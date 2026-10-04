@@ -31,8 +31,17 @@ jobs:
   deploy:
     needs: verify
     runs-on: ubuntu-latest
+    # Running under an environment makes GitHub record a Deployment on `production` for this commit, with
+    # status `success` when the job finishes. The demo's reset script waits for it, and Starfish's fast-revert
+    # window starts at its completion.
+    environment: production
     env:
       FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      # The web app is built during the Hosting predeploy; its Firebase config comes from repository variables.
+      VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

@@ -17,7 +17,11 @@ export function EntryScreen({ onUnlocked }: { onUnlocked: () => void }) {
     setError(null);
     try {
       if (team) await signInWithEmailAndPassword(auth, email, password);
-      else await call('access-redeemCode', { code });
+      else {
+        await call('access-redeemCode', { code });
+        // The grant also set a claim on this account; fetch a token that carries it.
+        await auth.currentUser?.getIdToken(true);
+      }
       onUnlocked();
     } catch (err) {
       setError(errorMessage(err));

@@ -1,5 +1,6 @@
-import { createHash, randomInt } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { getAuth } from 'firebase-admin/auth';
 import { Timestamp } from 'firebase-admin/firestore';
 import {
   CODE_ALPHABET,
@@ -32,10 +33,15 @@ const MESSAGES: Record<Exclude<CodeCheck, 'ok'>, string> = {
   expired: 'That code has expired',
 };
 
+/**
+ * Claims the demo controller (`control-*`) checks, see demo-control's docs/controller-identity.md:
+ * a code holder carries `demoAccessCodeId`, the code's id and never the code; a team member carries
+ * `demoTeam: true`. Set `demoTeam` by hand with the Admin SDK (`setCustomUserClaims`).
+ */
 export const access = {
-  /** A visitor trades a code for a grant on their (anonymous) account. */
+  /** A visitor trades a code for a grant and a claim on their (anonymous) account. Refresh the ID token afterwards. */
   redeemCode: onCall(
-    tracked<{ code?: unknown }, { expiresAtMs: number }>('access', async (req) => {
+    tracked<{ code?: unknown }, { expiresAtMs: number }>('access-redeemCode', async (req) => {
       const uid = requireAuth(req);
       if (typeof req.data?.code !== 'string' || req.data.code.length > 64) {
         throw new HttpsError('invalid-argument', 'Enter your access code');
@@ -58,19 +64,21 @@ export const access = {
           tx.set(rateRef, recordFailure(rate, now));
           return { kind: 'rejected' as const, check: check === 'ok' ? ('unknown' as const) : check };
         }
-        tx.set(accessGrant(uid), {
-          codeHash: hash,
+        const codeId = String(codeSnap.get('codeId'));
+        tx.set(db.doc(`accessGrants/${uid}`), {
+          codeId,
           grantedAt: Timestamp.fromMillis(now),
           expiresAt: Timestamp.fromMillis(record.expiresAtMs),
         });
         tx.delete(rateRef);
-        return { kind: 'granted' as const, expiresAtMs: record.expiresAtMs };
+        return { kind: 'granted' as const, expiresAtMs: record.expiresAtMs, codeId };
       });
 
       if (outcome.kind === 'blocked') {
         throw new HttpsError('resource-exhausted', 'Too many wrong codes. Try again in a few minutes.');
       }
       if (outcome.kind === 'rejected') throw new HttpsError('permission-denied', MESSAGES[outcome.check]);
+      await getAuth().setCustomUserClaims(uid, { demoAccessCodeId: outcome.codeId });
       return { expiresAtMs: outcome.expiresAtMs };
     }),
   ),
@@ -83,30 +91,33 @@ export const access = {
       throw new HttpsError('invalid-argument', `days must be a whole number from 1 to ${MAX_TTL_DAYS}`);
     }
     const code = generateCode();
+    const codeId = randomBytes(9).toString('base64url');
     const expiresAtMs = Date.now() + days * 24 * 60 * 60 * 1000;
     await db.doc(`accessCodes/${hashCode(code)}`).set({
+      codeId,
       createdBy: uid,
       createdAt: Timestamp.now(),
       expiresAt: Timestamp.fromMillis(expiresAtMs),
       revoked: false,
     });
-    return { code, expiresAtMs };
+    return { code, codeId, expiresAtMs };
   }),
 
-  /** Revoking a code also ends the grants it opened. */
+  /** Revoking a code ends its grants and revokes the refresh tokens of every account it opened, so `control-*` refuses them too. */
   revokeCode: onCall(async (req) => {
     requireTeam(req);
     if (typeof req.data?.code !== 'string') throw new HttpsError('invalid-argument', 'code is required');
-    const hash = hashCode(normalizeCode(req.data.code));
-    const ref = db.doc(`accessCodes/${hash}`);
-    if (!(await ref.get()).exists) throw new HttpsError('not-found', 'No such code');
+    const ref = db.doc(`accessCodes/${hashCode(normalizeCode(req.data.code))}`);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError('not-found', 'No such code');
     await ref.update({ revoked: true });
-    const grants = await db.collection('accessGrants').where('codeHash', '==', hash).get();
-    await Promise.all(grants.docs.map((g) => g.ref.delete()));
+    const grants = await db.collection('accessGrants').where('codeId', '==', snap.get('codeId')).get();
+    await Promise.all(
+      grants.docs.map(async (g) => {
+        await getAuth().revokeRefreshTokens(g.id);
+        await g.ref.delete();
+      }),
+    );
     return { revokedGrants: grants.size };
   }),
 };
-
-function accessGrant(uid: string) {
-  return db.doc(`accessGrants/${uid}`);
-}

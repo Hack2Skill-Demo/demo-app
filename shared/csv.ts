@@ -39,21 +39,27 @@ export const MAX_IMPORT_ROWS = 400;
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const PRICE = /^\d{1,6}(\.\d{1,2})?$/;
 
-/** Parse `id,name,price` rows. Any bad row rejects the whole file, so nothing half-imports. */
+const REQUIRED_COLUMNS = ['id', 'name', 'price'] as const;
+
+/** Parse rows with `id`, `name` and `price` columns (any order, extra columns ignored). Any bad row rejects the whole file. */
 export function parseProductCsv(text: string): { products: ImportedProduct[]; errors: string[] } {
   const rows = parseCsv(text);
-  const header = rows.shift()?.map((h) => h.trim().toLowerCase());
-  if (!header || header.join(',') !== 'id,name,price') return { products: [], errors: ['The first row must be: id,name,price'] };
+  const header = rows.shift()?.map((h) => h.trim().toLowerCase()) ?? [];
+  const missing = REQUIRED_COLUMNS.filter((c) => !header.includes(c));
+  if (missing.length > 0) return { products: [], errors: missing.map((c) => `Missing column "${c}"`) };
   if (rows.length === 0) return { products: [], errors: ['The file has no products'] };
   if (rows.length > MAX_IMPORT_ROWS) return { products: [], errors: [`At most ${MAX_IMPORT_ROWS} products per file`] };
 
+  const at = Object.fromEntries(REQUIRED_COLUMNS.map((c) => [c, header.indexOf(c)])) as Record<(typeof REQUIRED_COLUMNS)[number], number>;
   const products: ImportedProduct[] = [];
   const errors: string[] = [];
   const seen = new Set<string>();
   rows.forEach((cols, i) => {
     const line = i + 2;
-    const [id = '', name = '', price = ''] = cols.map((c) => c.trim());
-    if (cols.length !== 3) return void errors.push(`Line ${line}: expected 3 columns`);
+    if (cols.length !== header.length) return void errors.push(`Line ${line}: expected ${header.length} columns`);
+    const id = (cols[at.id] ?? '').trim();
+    const name = (cols[at.name] ?? '').trim();
+    const price = (cols[at.price] ?? '').trim();
     if (!ID.test(id)) return void errors.push(`Line ${line}: id must be lower-case letters, digits and dashes`);
     if (seen.has(id)) return void errors.push(`Line ${line}: id "${id}" appears twice`);
     if (!name || name.length > 80) return void errors.push(`Line ${line}: name must be 1 to 80 characters`);

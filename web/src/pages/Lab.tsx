@@ -1,104 +1,87 @@
-import { collection, doc, onSnapshot } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
-import { FEATURES } from '../../../shared/features';
-import { healthColor } from '../../../shared/health';
-import type { DeploymentRecord, Scenario } from '../../../shared/types';
-import { call, db, errorMessage } from '../firebase';
+import type { CycleView, HealthStrip, ScenarioView } from '../control';
+import { call, errorMessage } from '../firebase';
 
-function HealthStrip() {
-  const [recent, setRecent] = useState<Record<string, boolean[]>>({});
-  const [error, setError] = useState(false);
+/** The Lab page talks only to the demo controller's `control-*` callables. A press sends a scenario id and nothing else. */
+const REFRESH_MS = 5000;
 
-  useEffect(
-    () =>
-      onSnapshot(
-        collection(db, 'featureHealth'),
-        (snap) => setRecent(Object.fromEntries(snap.docs.map((d) => [d.id, (d.get('recent') as boolean[]) ?? []]))),
-        () => setError(true),
-      ),
-    [],
-  );
-
-  if (error) return <p role="alert" className="error">Health is unavailable right now.</p>;
+function Health({ strip }: { strip: HealthStrip }) {
   return (
     <ul className="health" aria-label="Feature health">
-      {FEATURES.map((f) => {
-        const color = healthColor(recent[f.id] ?? []);
-        return (
-          <li key={f.id} title={`${f.label}: ${color}`}>
-            <span className={`dot ${color}`} aria-hidden /> {f.label} <span className="sr">{color}</span>
-          </li>
-        );
-      })}
+      {strip.features.map((f) => (
+        <li key={f.feature} title={`${f.label}: ${f.status}${f.successRate === null ? '' : `, ${Math.round(f.successRate * 100)}% ok`}`}>
+          <span className={`dot ${f.status}`} aria-hidden /> {f.label} <span className="sr">{f.status}</span>
+        </li>
+      ))}
     </ul>
   );
 }
 
-/** Which commit is live, from the record the deploy pipeline writes. */
-function LiveCommit() {
-  const [live, setLive] = useState<DeploymentRecord | null | undefined>(undefined);
-
-  useEffect(
-    () =>
-      onSnapshot(
-        doc(db, 'deployments', 'current'),
-        (snap) =>
-          setLive(
-            snap.exists()
-              ? { commit: String(snap.get('commit')), deployedAtMs: (snap.get('deployedAt') as { toMillis(): number }).toMillis() }
-              : null,
-          ),
-        () => setLive(null),
-      ),
-    [],
-  );
-
-  if (live === undefined) return null;
-  if (live === null) return <p>Live commit: unknown</p>;
-  return (
-    <p>
-      Live commit: <code>{live.commit.slice(0, 7)}</code> since {new Date(live.deployedAtMs).toLocaleString()}
-    </p>
-  );
-}
-
 export function Lab() {
-  const [scenarios, setScenarios] = useState<Scenario[] | null>(null);
+  const [scenarios, setScenarios] = useState<ScenarioView[] | null>(null);
+  const [cycle, setCycle] = useState<CycleView | null>(null);
+  const [health, setHealth] = useState<HealthStrip | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [running, setRunning] = useState<string | null>(null);
+  const [healthError, setHealthError] = useState(false);
+  const [pressing, setPressing] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  const loadScenarios = useCallback(() => {
     setError(null);
-    call<undefined, { scenarios: Scenario[] }>('lab-listScenarios')
+    call<undefined, { scenarios: ScenarioView[] }>('control-getScenarios')
       .then((res) => setScenarios(res.scenarios))
       .catch((err) => setError(errorMessage(err)));
   }, []);
-  useEffect(load, [load]);
+
+  const refresh = useCallback(() => {
+    call<undefined, { cycle: CycleView | null }>('control-getState').then((res) => setCycle(res.cycle)).catch(() => undefined);
+    call<undefined, HealthStrip>('control-getHealth')
+      .then((res) => {
+        setHealth(res);
+        setHealthError(false);
+      })
+      .catch(() => setHealthError(true));
+  }, []);
+
+  useEffect(() => {
+    loadScenarios();
+    refresh();
+    const timer = setInterval(refresh, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [loadScenarios, refresh]);
 
   const press = async (id: string) => {
-    setRunning(id);
+    setPressing(id);
     setNote(null);
     try {
-      const res = await call<{ scenarioId: string }, { result: string }>('lab-runScenario', { scenarioId: id });
-      setNote(`${id}: ${res.result}`);
-      load();
+      await call<{ scenarioId: string }, unknown>('control-triggerFault', { scenarioId: id });
+      setNote(`Started ${id}.`);
+      refresh();
+      loadScenarios();
     } catch (err) {
-      setNote(`${id} failed: ${errorMessage(err)}`);
+      setNote(`${id} could not start: ${errorMessage(err)}`);
     } finally {
-      setRunning(null);
+      setPressing(null);
     }
   };
 
+  const active = cycle?.state === 'active';
   return (
     <section>
       <h2>Lab</h2>
-      <HealthStrip />
-      <LiveCommit />
+      {healthError && <p role="alert" className="error">Health is unavailable right now.</p>}
+      {health && <Health strip={health} />}
+      {cycle && (
+        <p role="status">
+          {cycle.scenarioId} {cycle.scenarioTitle && `(${cycle.scenarioTitle})`}: {cycle.state}
+          {active && cycle.remainingSeconds !== null && `, ${Math.ceil(cycle.remainingSeconds / 60)} min left`}
+          {cycle.failure && ` — ${cycle.failure}`}
+        </p>
+      )}
       {error && (
         <div role="alert" className="error">
           <p>Could not load the scenarios: {error}</p>
-          <button onClick={load}>Try again</button>
+          <button onClick={loadScenarios}>Try again</button>
         </div>
       )}
       {!error && !scenarios && <p>Loading scenarios…</p>}
@@ -106,10 +89,15 @@ export function Lab() {
       <ul className="scenarios">
         {scenarios?.map((s) => (
           <li key={s.id}>
-            <strong>{s.title}</strong>
-            <span>State: {s.state}</span>
-            <span>Last result: {s.lastResult ?? 'never run'}</span>
-            <button disabled={running !== null} onClick={() => void press(s.id)}>{running === s.id ? 'Running…' : 'Run'}</button>
+            <strong>{s.id}</strong> <span>{s.title}</span>
+            <span>Last result: {s.lastResult ? s.lastResult.outcome : 'never run'}</span>
+            <button
+              disabled={!s.pressable || active || pressing !== null}
+              title={s.pressable ? s.expected : s.notPressableReason}
+              onClick={() => void press(s.id)}
+            >
+              {pressing === s.id ? 'Starting…' : 'Run'}
+            </button>
           </li>
         ))}
       </ul>

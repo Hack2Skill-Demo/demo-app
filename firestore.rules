@@ -9,7 +9,7 @@ service cloud.firestore {
 
     function granted() {
       return signedIn() && (
-        request.auth.token.team == true ||
+        request.auth.token.demoTeam == true ||
         (exists(/databases/$(database)/documents/accessGrants/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/accessGrants/$(request.auth.uid)).data.expiresAt > request.time)
       );
@@ -19,9 +19,6 @@ service cloud.firestore {
       allow read: if signedIn() && request.auth.uid == uid;
     }
     match /products/{id} {
-      allow read: if granted();
-    }
-    match /featureHealth/{id} {
       allow read: if granted();
     }
     match /cache/{id} {
