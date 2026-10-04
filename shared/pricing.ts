@@ -40,6 +40,11 @@ export function discountFor(subtotalCents: number, percentOff: number): number {
   return Math.round((subtotalCents * percentOff) / 100);
 }
 
+/** A percentage of an amount, in whole cents. */
+function percentOfCents(cents: number, percent: number): number {
+  return Math.floor((cents * percent) / 100);
+}
+
 export function computeTotals(
   lines: readonly PricedLine[],
   coupon: Coupon | null,
@@ -56,7 +61,10 @@ export function computeTotals(
   const giftWrapCents = options.giftWrap ? GIFT_WRAP_CENTS : 0;
   const due = subtotalCents - discountCents + giftWrapCents;
   const giftCardCents = Math.min(Math.max(options.giftCardBalanceCents ?? 0, 0), due);
-  return { subtotalCents, discountCents, giftWrapCents, giftCardCents, totalCents: due - giftCardCents };
+  const totalCents = due - giftCardCents;
+  // Totals that billing would refuse to charge are never handed out.
+  chargeAmountCents({ lines, discountCents, couponPercentOff: coupon?.percentOff ?? null, giftWrapCents, giftCardCents, subtotalCents, totalCents });
+  return { subtotalCents, discountCents, giftWrapCents, giftCardCents, totalCents };
 }
 
 /** The parts of a stored order the backfill needs. Orders from before gift cards lack the gift fields. */
@@ -74,7 +82,7 @@ export interface StoredOrderPricing {
 export function correctedTotals(order: StoredOrderPricing): { subtotalCents: number; discountCents: number; totalCents: number } | null {
   const subtotalCents = subtotal(order.lines);
   const discountCents =
-    typeof order.couponPercentOff === 'number' ? discountFor(subtotalCents, order.couponPercentOff) : order.discountCents;
+    typeof order.couponPercentOff === 'number' ? percentOfCents(subtotalCents, order.couponPercentOff) : order.discountCents;
   const totalCents = subtotalCents - discountCents + (order.giftWrapCents ?? 0) - (order.giftCardCents ?? 0);
   if (subtotalCents === order.subtotalCents && discountCents === order.discountCents && totalCents === order.totalCents) return null;
   return { subtotalCents, discountCents, totalCents };

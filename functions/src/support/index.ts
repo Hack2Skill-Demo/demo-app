@@ -1,3 +1,4 @@
+import { logger } from 'firebase-functions/v2';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { Timestamp } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase';
@@ -21,7 +22,13 @@ export const support = {
   submitTicket: onCall(
     tracked<unknown, { ticketId: string }>('support', async (req) => {
       const uid = await requireGrant(req);
-      const ticket = parseTicket(req.data);
+      let ticket;
+      try {
+        ticket = parseTicket(req.data);
+      } catch (err) {
+        logger.error(`Ticket rejected: ${err instanceof Error ? err.message : String(err)}. Ticket: ${JSON.stringify(req.data)}`);
+        throw err;
+      }
       const ref = db.collection('tickets').doc();
       await ref.set({ ...ticket, uid, status: 'open', createdAt: Timestamp.now() });
       return { ticketId: ref.id };

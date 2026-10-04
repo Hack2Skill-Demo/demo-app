@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb, type PDFPage } from 'pdf-lib';
 import { INVOICE_LABELS, type InvoiceData } from './types';
 
 /** The standard PDF fonts only draw Latin text; swap anything else for "?" rather than fail the whole invoice. */
@@ -23,38 +23,47 @@ export function parseInvoiceData(raw: unknown): InvoiceData {
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+const PAGE_SIZE: [number, number] = [595, 842];
+const ROWS_PER_PAGE = 12;
+
 export async function renderInvoicePdf(data: InvoiceData): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595, 842]);
+  const pageCount = Math.floor(data.lines.length / ROWS_PER_PAGE);
+  const pages = [pdf.addPage(PAGE_SIZE)];
+  for (let p = 1; p < pageCount; p++) pages.push(pdf.addPage(PAGE_SIZE));
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const supported = new Set(font.getCharacterSet());
-  const draw = (text: string, x: number, y: number, size = 11, f = font) =>
-    page.drawText(toDrawable(text, supported), { x, y, size, font: f, color: rgb(0.1, 0.1, 0.1) });
-  const right = (text: string, x: number, y: number, f = font) =>
-    draw(text, x - f.widthOfTextAtSize(toDrawable(text, supported), 11), y, 11, f);
+  const draw = (on: PDFPage, text: string, x: number, y: number, size = 11, f = font) =>
+    on.drawText(toDrawable(text, supported), { x, y, size, font: f, color: rgb(0.1, 0.1, 0.1) });
+  const right = (on: PDFPage, text: string, x: number, y: number, f = font) =>
+    draw(on, text, x - f.widthOfTextAtSize(toDrawable(text, supported), 11), y, 11, f);
 
   const { labels } = data;
+  const first = pages[0]!;
   let y = 780;
-  draw(labels.Invoice, 50, y, 24, bold);
+  draw(first, labels.Invoice, 50, y, 24, bold);
   y -= 30;
-  draw(`${labels.Order}: ${data.orderId}`, 50, y);
+  draw(first, `${labels.Order}: ${data.orderId}`, 50, y);
   y -= 16;
-  draw(`${labels.Date}: ${data.createdAt.slice(0, 10)}`, 50, y);
+  draw(first, `${labels.Date}: ${data.createdAt.slice(0, 10)}`, 50, y);
   y -= 40;
-  draw(labels.Item, 50, y, 11, bold);
-  right(labels.Qty, 380, y, bold);
-  right(labels.Price, 545, y, bold);
+  draw(first, labels.Item, 50, y, 11, bold);
+  right(first, labels.Qty, 380, y, bold);
+  right(first, labels.Price, 545, y, bold);
   y -= 8;
-  page.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 0.5 });
+  first.drawLine({ start: { x: 50, y }, end: { x: 545, y }, thickness: 0.5 });
   for (const [i, line] of data.lines.entries()) {
+    if (i > 0 && i % ROWS_PER_PAGE === 0) y = 780;
     y -= 18;
-    draw(data.names[i] ?? line.name, 50, y);
-    right(String(line.qty), 380, y);
-    right(money(line.priceCents * line.qty), 545, y);
+    const on = pages[Math.floor(i / ROWS_PER_PAGE)]!;
+    draw(on, data.names[i] ?? line.name, 50, y);
+    right(on, String(line.qty), 380, y);
+    right(on, money(line.priceCents * line.qty), 545, y);
   }
+  const last = pages[pages.length - 1]!;
   y -= 30;
-  right(`${labels.Subtotal}: ${money(data.subtotalCents)}`, 545, y);
+  right(last, `${labels.Subtotal}: ${money(data.subtotalCents)}`, 545, y);
   const extras: [string, number][] = [
     [labels.Discount, -data.discountCents],
     ['Gift wrap', data.giftWrapCents],
@@ -63,9 +72,9 @@ export async function renderInvoicePdf(data: InvoiceData): Promise<Uint8Array> {
   for (const [label, cents] of extras) {
     if (cents === 0) continue;
     y -= 16;
-    right(`${label}: ${cents < 0 ? '-' : ''}${money(Math.abs(cents))}`, 545, y);
+    right(last, `${label}: ${cents < 0 ? '-' : ''}${money(Math.abs(cents))}`, 545, y);
   }
   y -= 20;
-  right(`${labels.Total}: ${money(data.totalCents)}`, 545, y, bold);
+  right(last, `${labels.Total}: ${money(data.totalCents)}`, 545, y, bold);
   return pdf.save();
 }

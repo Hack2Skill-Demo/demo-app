@@ -5,7 +5,7 @@ import { CODE_ALPHABET, checkCode, isBlocked, normalizeCode, recordFailure, RATE
 import { isServerFault } from './health';
 import { chargeAmountCents, computeTotals, correctedTotals, CouponError, GIFT_WRAP_CENTS } from './pricing';
 import { parseProductCsv } from './csv';
-import { summarizeOrders, topProducts } from './digest';
+import { summarizeOrders, topCountries, topProducts } from './digest';
 
 describe('pricing', () => {
   const lines = [
@@ -16,9 +16,9 @@ describe('pricing', () => {
     expect(computeTotals(lines, null, 0)).toEqual({ subtotalCents: 4498, discountCents: 0, giftWrapCents: 0, giftCardCents: 0, totalCents: 4498 });
   });
   it('applies a percentage coupon, rounded to the cent', () => {
-    const t = computeTotals(lines, { percentOff: 15, expiresAtMs: null }, 0);
-    expect(t.discountCents).toBe(675);
-    expect(t.totalCents).toBe(3823);
+    const t = computeTotals(lines, { percentOff: 30, expiresAtMs: null }, 0);
+    expect(t.discountCents).toBe(1349);
+    expect(t.totalCents).toBe(3149);
   });
   it('rejects an expired coupon', () => {
     expect(() => computeTotals(lines, { percentOff: 10, expiresAtMs: 5 }, 10)).toThrow(CouponError);
@@ -156,5 +156,12 @@ describe('sales summaries', () => {
       discountCents: 200,
     });
     expect(topProducts([o('placed', 2, 1), o('cancelled', 5, 1)])).toEqual([{ productId: 'mug', name: 'Mug', units: 2 }]);
+  });
+  it('counts deliveries per country and skips pickups', () => {
+    const to = (country?: string) => ({ ...o('placed', 1, 1), ...(country ? { country } : {}) });
+    expect(topCountries([to('US'), to('us'), to('DE'), to()])).toEqual([
+      { code: 'US', name: 'United States', orders: 2 },
+      { code: 'DE', name: 'Germany', orders: 1 },
+    ]);
   });
 });

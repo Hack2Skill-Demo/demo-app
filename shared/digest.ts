@@ -5,6 +5,8 @@ export interface DigestOrder {
   /** What the customer owes for the whole order, gift card included. */
   subtotalCents: number;
   giftWrapCents?: number;
+  /** Delivery country as the customer entered it; pickup orders have none. */
+  country?: string;
 }
 
 export interface SalesSummary {
@@ -36,4 +38,20 @@ export function topProducts(orders: readonly DigestOrder[], limit = 5): { produc
     }
   }
   return [...byId.values()].sort((a, b) => b.units - a.units || a.productId.localeCompare(b.productId)).slice(0, limit);
+}
+
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+
+/** Where the week's deliveries went, most orders first. Pickup orders have no country. */
+export function topCountries(orders: readonly DigestOrder[], limit = 5): { code: string; name: string; orders: number }[] {
+  const byCode = new Map<string, number>();
+  for (const o of orders.filter((o) => o.status !== 'cancelled')) {
+    if (!o.country) continue;
+    const code = o.country.toUpperCase();
+    byCode.set(code, (byCode.get(code) ?? 0) + 1);
+  }
+  return [...byCode]
+    .map(([code, count]) => ({ code, name: regionNames.of(code) ?? code, orders: count }))
+    .sort((a, b) => b.orders - a.orders || a.code.localeCompare(b.code))
+    .slice(0, limit);
 }
