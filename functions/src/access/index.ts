@@ -34,7 +34,7 @@ const MESSAGES: Record<Exclude<CodeCheck, 'ok'>, string> = {
 };
 
 /**
- * Claims the demo controller (`control-*`) checks, see demo-control's docs/controller-identity.md:
+ * Claims the demo controller (`control-*`) checks, in the same project:
  * a code holder carries `demoAccessCodeId`, the code's id and never the code; a team member carries
  * `demoTeam: true`. Set `demoTeam` by hand with the Admin SDK (`setCustomUserClaims`).
  */

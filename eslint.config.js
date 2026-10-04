@@ -7,8 +7,7 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // Part of the baseline, never a fault: Firestore must keep rejecting `undefined` fields, so a fix that
-    // switches ignoreUndefinedProperties on globally has to fail `pnpm run verify`. Do not remove this rule.
+    // Firestore should keep rejecting `undefined` fields rather than silently dropping them. Do not remove this rule.
     rules: {
       'no-restricted-syntax': [
         'error',
