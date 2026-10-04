@@ -96,6 +96,8 @@ function OrderDetails({ orderId, onChanged }: { orderId: string; onChanged: () =
           busyLabel="Opening checkout…"
           run={async () => {
             const { checkoutUrl } = await call<{ orderId: string }, { checkoutUrl: string }>('billing-createCheckoutSession', { orderId });
+            // Only ever send the customer to a secure page.
+            if (!/^https:\/\//i.test(checkoutUrl)) throw new Error('The payment page address is not valid');
             window.location.assign(checkoutUrl);
             return 'Redirecting to the payment page…';
           }}
