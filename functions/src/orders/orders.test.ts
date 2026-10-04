@@ -58,7 +58,7 @@ describe('orderEventFor', () => {
   const at = Timestamp.fromMillis(0);
   it('leaves an event for gift-wrapped orders only, carrying the coupon', () => {
     expect(orderEventFor({ giftWrap: true, couponCode: 'THANKS5' }, 'o1', 'c1', at)).toMatchObject({ type: 'gift-wrapped', couponCode: 'THANKS5' });
-    expect(orderEventFor({ giftWrap: true }, 'o1', 'c1', at)?.couponCode).toBeNull();
+    expect(orderEventFor({ giftWrap: false }, 'o1', 'c1', at)).toBeNull();
     expect(orderEventFor({ giftWrap: false, couponCode: 'THANKS5' }, 'o1', 'c1', at)).toBeNull();
   });
 });

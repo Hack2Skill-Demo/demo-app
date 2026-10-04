@@ -1,7 +1,7 @@
-import { onCall } from 'firebase-functions/v2/https';
-import type { OrderSummary } from '../../../shared/types';
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import type { OrderStatus, OrderSummary } from '../../../shared/types';
 import { db } from '../lib/firebase';
-import { requireGrant } from '../lib/guards';
+import { isTeam, requireGrant } from '../lib/guards';
 import { tracked } from '../lib/track';
 import { parseTag } from './model';
 import { toSummary } from './orderView';
@@ -9,11 +9,24 @@ import { toSummary } from './orderView';
 const SEARCH_SCAN = 200;
 const SEARCH_RESULTS = 50;
 
-/** The customer's last 10 orders, newest first. Needs the (customerId, createdAt desc) index. */
+function parseStatus(raw: unknown): OrderStatus | undefined {
+  if (raw === undefined) return undefined;
+  if (raw !== 'placed' && raw !== 'cancelled') throw new HttpsError('invalid-argument', 'Status is placed or cancelled');
+  return raw;
+}
+
+/**
+ * The customer's last 10 orders, newest first. Team members can pass a status to see the shop's latest placed or
+ * cancelled orders instead.
+ */
 export const listRecentOrders = onCall(
-  tracked<unknown, { orders: OrderSummary[] }>('orders-listRecentOrders', async (req) => {
+  tracked<{ status?: unknown } | undefined, { orders: OrderSummary[] }>('orders-listRecentOrders', async (req) => {
     const uid = await requireGrant(req);
-    const snap = await db.collection('orders').where('customerId', '==', uid).orderBy('createdAt', 'desc').limit(10).get();
+    const status = parseStatus(req.data?.status);
+    if (status && !isTeam(req)) throw new HttpsError('permission-denied', 'Team members only');
+    const orders = db.collection('orders');
+    const query = status ? orders.where('status', '==', status) : orders.where('customerId', '==', uid);
+    const snap = await query.orderBy('createdAt', 'desc').limit(10).get();
     return { orders: snap.docs.map(toSummary) };
   }),
 );

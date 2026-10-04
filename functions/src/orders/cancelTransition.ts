@@ -1,3 +1,5 @@
+import { Timestamp, type DocumentSnapshot } from 'firebase-admin/firestore';
+
 export interface CancellableOrder {
   status?: string;
   paymentStatus?: string;
@@ -19,4 +21,9 @@ export function cancelTransition(order: CancellableOrder): CancelDecision {
   }
   const refundCents = order.giftCardCents ?? 0;
   return { kind: 'cancel', giftCardCode: order.giftCardCode ?? null, refundCents };
+}
+
+/** Mark an order cancelled, as long as it has not changed since it was read. */
+export async function markCancelled(order: DocumentSnapshot): Promise<void> {
+  await order.ref.update({ status: 'cancelled', cancelledAt: Timestamp.now() }, { lastUpdateTime: order.updateTime as Timestamp });
 }
