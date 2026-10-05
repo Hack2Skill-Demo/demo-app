@@ -6,7 +6,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { GoogleAuth } from 'google-auth-library';
 import { Timestamp } from 'firebase-admin/firestore';
 import { parseProductCsv } from '../../../shared/csv';
-import { summarizeOrders, topProducts, type DigestOrder } from '../../../shared/digest';
+import { summarizeOrders, topCountries, topProducts, type DigestOrder } from '../../../shared/digest';
 import { yesterdayUtc } from '../../../shared/export';
 import { analyticsDb, db } from '../lib/firebase';
 import { requireGrant, requireTeam } from '../lib/guards';
@@ -54,36 +54,39 @@ const MAX_CSV_BYTES = 200 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function ordersBetween(startMs: number, endMs: number): Promise<DigestOrder[]> {
-  // Placed orders only: this is the (status, createdAt desc) index.
+  // The range on createdAt is served by its own single-field index; placed orders are picked out here.
   const snap = await db
     .collection('orders')
-    .where('status', '==', 'placed')
     .where('createdAt', '>=', Timestamp.fromMillis(startMs))
     .where('createdAt', '<', Timestamp.fromMillis(endMs))
     .orderBy('createdAt', 'desc')
     .get();
-  return snap.docs.map((d) => ({
-    status: (d.get('status') as string | undefined) ?? 'placed',
-    lines: d.get('lines') as DigestOrder['lines'],
-    subtotalCents: d.get('subtotalCents') as number,
-    discountCents: d.get('discountCents') as number,
-    giftWrapCents: (d.get('giftWrapCents') as number | undefined) ?? 0,
-  }));
+  return snap.docs
+    .filter((d) => d.get('status') === 'placed')
+    .map((d) => ({
+      status: 'placed',
+      lines: d.get('lines') as DigestOrder['lines'],
+      subtotalCents: d.get('subtotalCents') as number,
+      discountCents: d.get('discountCents') as number,
+      giftWrapCents: (d.get('giftWrapCents') as number | undefined) ?? 0,
+      country: d.get('fulfillment.shippingAddress.country') as string | undefined,
+    }));
 }
 
+/** The seven days up to now. */
 export async function runWeeklyDigest(nowMs: number): Promise<void> {
-  const endMs = Date.UTC(new Date(nowMs).getUTCFullYear(), new Date(nowMs).getUTCMonth(), new Date(nowMs).getUTCDate());
-  const startMs = endMs - 7 * DAY_MS;
+  const startMs = nowMs - 7 * DAY_MS;
   await trackOutcome('weeklyDigest', async () => {
-    const orders = await ordersBetween(startMs, endMs);
+    const orders = await ordersBetween(startMs, nowMs);
     const { orderCount, units, revenueCents } = summarizeOrders(orders);
     await db.doc('reports/weeklyDigest').set({
       weekStart: new Date(startMs).toISOString().slice(0, 10),
-      weekEnd: new Date(endMs - DAY_MS).toISOString().slice(0, 10),
+      weekEnd: new Date(nowMs).toISOString().slice(0, 10),
       orderCount,
       units,
       revenueCents,
       topProducts: topProducts(orders),
+      topCountries: topCountries(orders),
       finishedAt: Timestamp.now(),
     });
   });
@@ -94,21 +97,29 @@ export async function runDailyRollup(nowMs: number): Promise<void> {
   await trackOutcome('dailyRollup', async () => {
     const summary = summarizeOrders(await ordersBetween(startMs, endMs));
     // Reporting data lives in the second database, `analytics`, so reports never share a database with orders.
-    await analyticsDb.doc(`dailyTotals/${date}`).set({ date, ...summary, computedAt: Timestamp.now() });
+    const totals = analyticsDb.doc(`dailyTotals/${date}`);
+    if ((await totals.get()).exists) {
+      // The day was rolled up before: say how the numbers moved since the last run.
+      const runs = await analyticsDb.collection('rollupRuns').where('day', '==', date).orderBy('computedAt', 'desc').limit(1).get();
+      logger.info('daily rollup re-run', { date, was: runs.docs[0]?.get('revenueCents'), now: summary.revenueCents });
+    }
+    const computedAt = Timestamp.now();
+    await totals.set({ date, ...summary, computedAt });
+    await analyticsDb.collection('rollupRuns').add({ day: date, ...summary, computedAt });
   });
 }
 
 const REGION = 'us-central1';
 
 /**
- * Start one export now. A scheduled function cannot be called, so this asks Cloud Scheduler to run the function's own
- * job: the export then runs, and logs, as `reports-nightlyExport`. Needs `cloudscheduler.jobs.run` (roles/cloudscheduler.jobRunner).
+ * Start one scheduled function now. A scheduled function cannot be called, so this asks Cloud Scheduler to run the function's
+ * own job: it then runs, and logs, under its own name (`reports-nightlyExport`). Needs `cloudscheduler.jobs.run` (roles/cloudscheduler.jobRunner).
  */
-async function runExportJobNow(): Promise<void> {
+export async function runScheduledJobNow(functionName: string): Promise<void> {
   const project = process.env.GCLOUD_PROJECT;
   if (!project) throw new Error('GCLOUD_PROJECT is not set');
   const client = await new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' }).getClient();
-  const job = `projects/${project}/locations/${REGION}/jobs/firebase-schedule-reports-nightlyExport-${REGION}`;
+  const job = `projects/${project}/locations/${REGION}/jobs/firebase-schedule-${functionName}-${REGION}`;
   await client.request({ url: `https://cloudscheduler.googleapis.com/v1/${job}:run`, method: 'POST', data: {} });
 }
 
@@ -117,7 +128,7 @@ export const reports = {
   runNightlyExport: onCall(
     tracked<unknown, { started: true }>('reports-runNightlyExport', async (req) => {
       await requireGrant(req);
-      await runExportJobNow();
+      await runScheduledJobNow('reports-nightlyExport');
       return { started: true };
     }),
   ),
@@ -130,7 +141,11 @@ export const reports = {
       if (typeof csv !== 'string' || csv.length === 0) throw new HttpsError('invalid-argument', 'Choose a CSV file');
       if (csv.length > MAX_CSV_BYTES) throw new HttpsError('invalid-argument', 'The file is too large (200 KB at most)');
       const { products, errors } = parseProductCsv(csv);
-      if (errors.length > 0) throw new HttpsError('invalid-argument', errors.slice(0, 10).join('\n'));
+      if (errors.length > 0) {
+        const message = errors.slice(0, 10).join('\n');
+        logger.error(message, { filename: typeof req.data?.filename === 'string' ? req.data.filename : null });
+        throw new HttpsError('invalid-argument', message);
+      }
       const batch = db.batch();
       for (const { id, ...rest } of products) batch.set(db.doc(`products/${id}`), rest);
       await batch.commit();

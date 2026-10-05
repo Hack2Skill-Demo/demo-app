@@ -25,7 +25,11 @@ export function sellable(products: readonly { id: string; name?: unknown; priceC
 export async function warmCatalogCache(): Promise<number> {
   const snap = await db.collection('products').orderBy('name').get();
   const products = sellable(snap.docs.map((d) => ({ id: d.id, name: d.get('name'), priceCents: d.get('priceCents') })));
-  await db.doc('cache/catalog').set({ products, refreshedAt: Timestamp.now() });
+  const batch = db.batch();
+  batch.set(db.doc('cache/catalog'), { products, refreshedAt: Timestamp.now() });
+  // One small document per lower-cased name, so a product can be opened by name without scanning the list.
+  for (const p of products) batch.set(db.doc(`cache/catalog/byName/${p.name.toLowerCase()}`), { id: p.id });
+  await batch.commit();
   return products.length;
 }
 

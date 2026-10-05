@@ -4,7 +4,7 @@ export interface OrderEvent {
   orderId: string;
   customerId: string;
   type: 'gift-wrapped';
-  couponCode: string | null;
+  couponCode?: string;
   at: Timestamp;
 }
 
@@ -16,5 +16,5 @@ export function orderEventFor(
   at: Timestamp,
 ): OrderEvent | null {
   if (!order.giftWrap) return null;
-  return { orderId, customerId, type: 'gift-wrapped', couponCode: order.couponCode ?? null, at };
+  return { orderId, customerId, type: 'gift-wrapped', couponCode: order.couponCode, at };
 }

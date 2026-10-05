@@ -9,5 +9,5 @@ export function verifySignature(rawBody: Buffer | string, header: string | undef
   if (!header || !secret) return false;
   const expected = Buffer.from(sign(rawBody, secret));
   const given = Buffer.from(header);
-  return expected.length === given.length && timingSafeEqual(expected, given);
+  return timingSafeEqual(expected, given);
 }

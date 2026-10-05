@@ -14,7 +14,9 @@ export const onUserCreate = v1
   .onCreate(async (user) => {
       if (!user.email && !user.phoneNumber) return;
       await trackOutcome('accounts-onUserCreate', async () => {
+        const firstName = user.email ? user.email.split('@')[0] : user.displayName!.split(' ')[0];
         await db.doc(`profiles/${user.uid}`).set({
+          firstName,
           email: user.email ?? null,
           phone: user.phoneNumber ?? null,
           signInMethod: user.email ? 'email' : 'phone',

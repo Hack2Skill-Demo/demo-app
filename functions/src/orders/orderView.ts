@@ -22,3 +22,18 @@ export function toSummary(d: DocumentSnapshot): OrderSummary {
     createdAt: (d.get('createdAt') as Timestamp).toDate().toISOString(),
   };
 }
+
+/** An order with where it is going and what is still due by card, for the order page. */
+export interface OrderDetails extends OrderSummary {
+  shipTo: string;
+  amountDue: string;
+}
+
+function dollars(cents: number): string {
+  const digits = cents.toString().padStart(3, '0');
+  return `${digits.slice(0, -2)}.${digits.slice(-2)}`;
+}
+
+export function toOrderDetails(d: DocumentSnapshot, shipTo: string): OrderDetails {
+  return { ...toSummary(d), shipTo, amountDue: dollars(d.get('payment.totalCents') as number) };
+}

@@ -20,8 +20,9 @@ export const createOrder = onCall(
       const lines: OrderLine[] = snaps.map((snap, i) => {
         const item = parsed.items[i]!;
         if (!snap.exists) {
-          logger.error('Checkout failed', { sku: item.sku, reason: 'unknown product' });
-          throw new HttpsError('invalid-argument', `Unknown product: ${item.sku}`);
+          const failure = new HttpsError('invalid-argument', `Unknown product: ${item.sku}`);
+          logger.write({ severity: 'ERROR', message: 'Checkout failed', sku: item.sku, reason: 'unknown product', error: failure.stack });
+          throw failure;
         }
         const priceCents = snap.get('priceCents');
         if (typeof priceCents !== 'number' || !Number.isInteger(priceCents) || priceCents < 0) {
@@ -59,16 +60,16 @@ export const createOrder = onCall(
         customerId,
         lines,
         ...totals,
-        couponCode: parsed.couponCode ?? null,
+        couponCode: parsed.couponCode,
         // Kept so the nightly backfill can recompute the discount if a total ever drifts.
         couponPercentOff: coupon?.percentOff ?? null,
         giftCardCode: totals.giftCardCents > 0 ? parsed.giftCardCode : null,
         giftWrap: parsed.giftWrap,
-        giftNote: parsed.giftNote ?? null,
+        giftNote: parsed.giftNote,
         fulfillment: parsed.fulfillment,
         tags: parsed.tags,
         status: 'placed',
-        payment: { status: totals.totalCents === 0 ? 'paid' : 'unpaid' },
+        payment: { status: totals.totalCents === 0 ? 'paid' : 'unpaid', amountCents: totals.totalCents },
         createdAt: now,
       });
       const event = orderEventFor(parsed, ref.id, customerId, now);
