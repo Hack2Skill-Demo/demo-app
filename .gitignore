@@ -4,5 +4,7 @@ dist/
 .env
 .env.*
 !.env.example
+# The shop's function settings for its own project: addresses only, never a secret.
+!functions/.env.hack2skill-demo
 .firebase/
 *.log
