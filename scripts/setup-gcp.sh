@@ -101,7 +101,9 @@ bind "serviceAccount:${DEPLOYER}" roles/datastore.user \
 # project's default build account, and nothing else; each on that one account, not project-wide. Cloud Run and
 # Functions source deploys build as the default build account, so a deploy is denied without the last one.
 BUILD_ACT_AS="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-for target in "$RUNTIME" "$RENDERER" "$BUILD_ACT_AS"; do
+# The Firebase CLI also requires it on the App Engine default account, which first-generation functions run as.
+APP_ENGINE_SA="${PROJECT_ID}@appspot.gserviceaccount.com"
+for target in "$RUNTIME" "$RENDERER" "$BUILD_ACT_AS" "$APP_ENGINE_SA"; do
   run gcloud iam service-accounts add-iam-policy-binding "$target" --project="$PROJECT_ID" \
     --role=roles/iam.serviceAccountUser --member="serviceAccount:${DEPLOYER}" --format=none
 done
