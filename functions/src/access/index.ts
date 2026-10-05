@@ -13,7 +13,7 @@ import {
   type RateState,
 } from '../../../shared/access';
 import { db } from '../lib/firebase';
-import { requireAuth, requireTeam } from '../lib/guards';
+import { isAnonymous, mergeClaims, requireAuth, requireTeam } from '../lib/guards';
 import { tracked } from '../lib/track';
 
 /** Codes are high-entropy and random, so a plain SHA-256 is enough; only the hash is ever stored. */
@@ -43,6 +43,9 @@ export const access = {
   redeemCode: onCall(
     tracked<{ code?: unknown }, { expiresAtMs: number }>('access-redeemCode', async (req) => {
       const uid = requireAuth(req);
+      if (!isAnonymous(req)) {
+        throw new HttpsError('failed-precondition', 'Access codes are for visitors. Team members sign in with their own account.');
+      }
       if (typeof req.data?.code !== 'string' || req.data.code.length > 64) {
         throw new HttpsError('invalid-argument', 'Enter your access code');
       }
@@ -78,7 +81,8 @@ export const access = {
         throw new HttpsError('resource-exhausted', 'Too many wrong codes. Try again in a few minutes.');
       }
       if (outcome.kind === 'rejected') throw new HttpsError('permission-denied', MESSAGES[outcome.check]);
-      await getAuth().setCustomUserClaims(uid, { demoAccessCodeId: outcome.codeId });
+      const user = await getAuth().getUser(uid);
+      await getAuth().setCustomUserClaims(uid, mergeClaims(user.customClaims, { demoAccessCodeId: outcome.codeId }));
       return { expiresAtMs: outcome.expiresAtMs };
     }),
   ),
