@@ -27,3 +27,13 @@ export async function requireGrant(req: CallableRequest): Promise<string> {
   }
   return uid;
 }
+
+/** Only a visitor (an anonymous account) may redeem an access code. Real accounts in this shared project, such as another app's operators, never do. */
+export function isAnonymous(req: CallableRequest): boolean {
+  return req.auth?.token.firebase?.sign_in_provider === 'anonymous';
+}
+
+/** Add a claim to what the account already carries. `setCustomUserClaims` replaces the whole set, which would wipe any other claim on the account. */
+export function mergeClaims(existing: Record<string, unknown> | undefined, add: Record<string, unknown>): Record<string, unknown> {
+  return { ...(existing ?? {}), ...add };
+}
