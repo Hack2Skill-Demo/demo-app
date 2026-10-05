@@ -3,15 +3,28 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase';
 import { trackOutcome } from '../lib/track';
 
-/** Copy the catalog into a single document, so the Shop loads it with one cheap read. Products without a price cannot be sold, so they are left out. */
+export interface CatalogEntry {
+  id: string;
+  name: string;
+  priceCents: number;
+}
+
+/**
+ * Only products that have a price are for sale. A product without one (the seed has one on purpose) must be left out:
+ * writing `priceCents: undefined` into the cache document is an error in Firestore, and would stop the warmer for good.
+ */
+export function sellable(products: readonly { id: string; name?: unknown; priceCents?: unknown }[]): CatalogEntry[] {
+  return products.flatMap((p) =>
+    typeof p.priceCents === 'number' && Number.isInteger(p.priceCents) && typeof p.name === 'string'
+      ? [{ id: p.id, name: p.name, priceCents: p.priceCents }]
+      : [],
+  );
+}
+
+/** Copy the catalog into a single document, so the Shop loads it with one cheap read. */
 export async function warmCatalogCache(): Promise<number> {
   const snap = await db.collection('products').orderBy('name').get();
-  const products: { id: string; name: string; priceCents: number }[] = [];
-  for (const d of snap.docs) {
-    const priceCents = d.get('priceCents');
-    if (typeof priceCents !== 'number') continue;
-    products.push({ id: d.id, name: d.get('name') as string, priceCents });
-  }
+  const products = sellable(snap.docs.map((d) => ({ id: d.id, name: d.get('name'), priceCents: d.get('priceCents') })));
   const batch = db.batch();
   batch.set(db.doc('cache/catalog'), { products, refreshedAt: Timestamp.now() });
   // One small document per lower-cased name, so a product can be opened by name without scanning the list.
