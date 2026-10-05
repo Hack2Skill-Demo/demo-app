@@ -46,11 +46,19 @@ async function renderWithService(invoice: InvoiceData): Promise<Buffer> {
   return Buffer.from(res.data);
 }
 
-/** Every rendered invoice is kept in the project's invoices bucket, `<project>-demo-invoices`, written by the shop's runtime account. */
-async function storeInvoice(orderId: string, pdf: Buffer): Promise<void> {
+/**
+ * Every rendered invoice is kept in the project's invoices bucket, `<project>-demo-invoices`. The runtime account may
+ * only create objects there, never overwrite, so an invoice already stored (a second download) is left as it is.
+ */
+async function storeInvoice(orderId: string, language: string, pdf: Buffer): Promise<void> {
   const project = process.env.GCLOUD_PROJECT;
   if (!project) throw new Error('GCLOUD_PROJECT is not set');
-  await getStorage().bucket(`${project}-demo-invoices`).file(`invoices/${orderId}.pdf`).save(pdf, { contentType: 'application/pdf' });
+  const file = getStorage().bucket(`${project}-demo-invoices`).file(`invoices/${orderId}-${language.toLowerCase()}.pdf`);
+  try {
+    await file.save(pdf, { contentType: 'application/pdf', preconditionOpts: { ifGenerationMatch: 0 } });
+  } catch (err) {
+    if ((err as { code?: number }).code !== 412) throw err; // 412: it is already there
+  }
 }
 
 export const invoices = {
@@ -82,7 +90,7 @@ export const invoices = {
           names,
         }),
       );
-      await storeInvoice(snap.id, pdf);
+      await storeInvoice(snap.id, language, pdf);
       return { pdfBase64: pdf.toString('base64'), filename: `invoice-${snap.id}.pdf` };
     }),
   ),

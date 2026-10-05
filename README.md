@@ -88,19 +88,31 @@ They meet at these points:
 ## Deploy on merge
 
 `.github/workflows/deploy.yml` runs on every push to `main`: `pnpm run verify`, then
-`firebase deploy --only functions:demo,hosting:<site>` (unchanged functions are skipped).
-It never deploys Firestore rules or indexes. Set up once:
+`firebase deploy --only functions:demo,hosting:<site>` (unchanged functions are skipped), and the `pdf-renderer`
+Cloud Run service. It never deploys Firestore rules or indexes.
 
-- repository variable `FIREBASE_PROJECT_ID`;
-- repository secrets `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`, a service
-  account allowed to deploy Functions and Hosting and to write Firestore.
+**Keyless.** The job signs in to Google with Workload Identity Federation: no service-account key and no GitHub secret
+exist. Only this repository's jobs that run in the GitHub environment `production` can act as `demo-deployer`.
+`scripts/setup-gcp.sh` does the Google side (dry run by default, `APPLY=1` to apply): the APIs, the `demo-functions`
+and `demo-deployer` accounts with narrow roles (Firestore limited to the shop's databases), the identity provider, the
+invoices bucket, the `analytics` database and the two secrets. By hand after it:
 
-The deploy job runs under the GitHub environment `production`, so GitHub records a Deployment for the merge commit with
-status `success` when it finishes (the controller's reset script waits for it). Set repository variables
-`VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN` and `VITE_FIREBASE_APP_ID` too: the web app is built during the
-Hosting predeploy. After a successful deploy `functions/scripts/record-deploy.mjs` writes the commit, the Cloud Run
-revision of each function, the Hosting version and the completion time to the `(default)`
-database: `deployments/<commit>` for history and `deployments/current` for the live one. Starfish can read the same document.
+- repository variables `FIREBASE_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_DEPLOY_SERVICE_ACCOUNT` (the
+  script prints the values; none is secret);
+- create the `production` environment and limit its deployment branches to `main`: without that rule anyone who can
+  push a branch could edit the workflow there and use the deployer;
+- in the Firebase console, turn on Anonymous and Email/Password sign-in and register a web app. Hosting then serves its
+  config at `/__/firebase/init.json`, which the app reads, so the build needs no Firebase settings.
+
+The deployer is highly privileged: several of its roles (Cloud Run, Functions, Storage) cannot be scoped to this repo's
+resources in a shared project. Treat the `production` environment as the gate, and add required reviewers if you want a
+manual approval per deploy.
+
+Running under that environment also makes GitHub record a Deployment for the merge commit with status `success` when
+the job finishes (the controller's reset script waits for it). After a successful deploy
+`functions/scripts/record-deploy.mjs` writes the commit, the Cloud Run revision of each function, the Hosting version and
+the completion time to the `(default)` database: `deployments/<commit>` for history and `deployments/current` for the
+live one. Starfish can read the same document.
 
 ## The rest of the shop
 
