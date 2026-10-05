@@ -58,12 +58,13 @@ bind() { # bind <member> <role> [IAM condition expression]
   run gcloud projects add-iam-policy-binding "$PROJECT_ID" --member="$1" --role="$2" "${cond[@]}" --quiet --format=none
 }
 
-step "APIs"
+step "APIs (including the two the Firebase CLI checks on every functions deploy; the deployer may not enable APIs itself)"
 run gcloud services enable --project="$PROJECT_ID" \
   cloudfunctions.googleapis.com run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   cloudscheduler.googleapis.com secretmanager.googleapis.com eventarc.googleapis.com pubsub.googleapis.com \
   firestore.googleapis.com firebasehosting.googleapis.com identitytoolkit.googleapis.com translate.googleapis.com \
-  iamcredentials.googleapis.com sts.googleapis.com storage.googleapis.com
+  iamcredentials.googleapis.com sts.googleapis.com storage.googleapis.com \
+  cloudbilling.googleapis.com firebaseextensions.googleapis.com
 
 step "Service accounts"
 for sa in demo-functions demo-deployer demo-pdf-renderer; do
