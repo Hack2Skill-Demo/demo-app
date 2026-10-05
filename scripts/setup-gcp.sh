@@ -27,6 +27,7 @@ APPLY="${APPLY:-0}"
 
 DEPLOYER="demo-deployer@${PROJECT_ID}.iam.gserviceaccount.com"
 RUNTIME="demo-functions@${PROJECT_ID}.iam.gserviceaccount.com"
+RENDERER="demo-pdf-renderer@${PROJECT_ID}.iam.gserviceaccount.com"
 BUCKET="${PROJECT_ID}-demo-invoices"
 
 step() { printf '\n== %s\n' "$*"; }
@@ -65,7 +66,7 @@ run gcloud services enable --project="$PROJECT_ID" \
   iamcredentials.googleapis.com sts.googleapis.com storage.googleapis.com
 
 step "Service accounts"
-for sa in demo-functions demo-deployer; do
+for sa in demo-functions demo-deployer demo-pdf-renderer; do
   exists gcloud iam service-accounts describe "${sa}@${PROJECT_ID}.iam.gserviceaccount.com" --project="$PROJECT_ID" ||
     run gcloud iam service-accounts create "$sa" --project="$PROJECT_ID" --display-name="Demo shop: $sa"
 done
@@ -96,9 +97,14 @@ done
 # After a deploy it records the live commit in the shop's (default) database, and nowhere else.
 bind "serviceAccount:${DEPLOYER}" roles/datastore.user \
   "resource.name == \"${DEFAULT_DB}\" || resource.name.startsWith(\"${DEFAULT_DB}/\")"
-# It may run things as the shop's runtime account and nothing else; not project-wide.
-run gcloud iam service-accounts add-iam-policy-binding "$RUNTIME" --project="$PROJECT_ID" \
-  --role=roles/iam.serviceAccountUser --member="serviceAccount:${DEPLOYER}" --format=none
+# It may run things as the shop's runtime account, the PDF renderer's account (which holds no roles at all) and the
+# project's default build account, and nothing else; each on that one account, not project-wide. Cloud Run and
+# Functions source deploys build as the default build account, so a deploy is denied without the last one.
+BUILD_ACT_AS="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+for target in "$RUNTIME" "$RENDERER" "$BUILD_ACT_AS"; do
+  run gcloud iam service-accounts add-iam-policy-binding "$target" --project="$PROJECT_ID" \
+    --role=roles/iam.serviceAccountUser --member="serviceAccount:${DEPLOYER}" --format=none
+done
 
 step "What the shop's functions may do (as demo-functions)"
 for role in roles/logging.logWriter roles/artifactregistry.reader roles/firebaseauth.admin roles/cloudtranslate.user \

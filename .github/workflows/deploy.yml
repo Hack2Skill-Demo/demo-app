@@ -83,7 +83,18 @@ jobs:
           --source pdf-renderer
           --project "$FIREBASE_PROJECT_ID"
           --region us-central1
+          --service-account "demo-pdf-renderer@${FIREBASE_PROJECT_ID}.iam.gserviceaccount.com"
           --no-allow-unauthenticated
+          --quiet
+
+      # Only the shop's functions may call the renderer.
+      - name: Let the shop's functions call the PDF renderer
+        run: >
+          gcloud run services add-iam-policy-binding pdf-renderer
+          --project "$FIREBASE_PROJECT_ID"
+          --region us-central1
+          --member "serviceAccount:demo-functions@${FIREBASE_PROJECT_ID}.iam.gserviceaccount.com"
+          --role roles/run.invoker
           --quiet
 
       # Firebase skips functions whose source is unchanged, so only changed functions are redeployed.
