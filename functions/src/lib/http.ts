@@ -13,6 +13,6 @@ export async function fetchJson<T>(url: string, init: RequestInit & { timeoutMs:
       timedOut ? `DEADLINE_EXCEEDED: no answer within ${timeoutMs} ms: ${url}` : `Upstream did not answer: ${url}`,
     );
   }
-  if (!res.ok) throw new HttpsError('unavailable', `Upstream answered ${res.status}: ${url}`);
+  if (!res.ok) throw new HttpsError('unavailable', `Upstream answered with status ${res.status}: ${url}`);
   return (await res.json()) as T;
 }
