@@ -90,7 +90,7 @@ step "What the deployer may do (a starting set: the first run names anything mis
 # Be clear about the size of this: several of these roles are project-wide because a Functions or Cloud Run deploy
 # cannot be scoped tighter, so the deployer is highly privileged. What guards it is the provider's condition (this
 # repository, `production` environment only) plus that environment limited to the `main` branch in GitHub."
-for role in roles/firebasehosting.admin roles/cloudfunctions.developer roles/run.admin roles/cloudbuild.builds.editor \
+for role in roles/firebasehosting.admin roles/cloudfunctions.admin roles/run.admin roles/cloudbuild.builds.editor \
   roles/artifactregistry.admin roles/storage.admin roles/cloudscheduler.admin roles/pubsub.editor roles/eventarc.admin \
   roles/firebase.viewer roles/serviceusage.serviceUsageConsumer; do
   bind "serviceAccount:${DEPLOYER}" "$role"
