@@ -1,8 +1,13 @@
 import { setGlobalOptions } from 'firebase-functions/v2';
 
-// The shop's functions run as demo-functions@<project>, a dedicated account for the shop. The trailing '@' makes
-// the Firebase CLI append the project's domain; a bare name is rejected when it grants the account its secrets.
-setGlobalOptions({ region: 'us-central1', maxInstances: 10, serviceAccount: 'demo-functions@' });
+// The shop's functions run as demo-functions@<project>, a dedicated account for the shop. This must be the full
+// email: the Firebase CLI grants the account its secrets using the value as written, and Secret Manager rejects
+// both a bare name and the `name@` shorthand. The CLI sets GCLOUD_PROJECT when it loads this file for a deploy.
+setGlobalOptions({
+  region: 'us-central1',
+  maxInstances: 10,
+  serviceAccount: `demo-functions@${process.env.GCLOUD_PROJECT}.iam.gserviceaccount.com`,
+});
 
 // Grouped exports deploy as `<group>-<name>`, e.g. `orders-createOrder`.
 // functions/scripts/record-deploy.mjs reads the group names from the lines below.
