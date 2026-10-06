@@ -69,6 +69,11 @@ export function Lab() {
   return (
     <section>
       <h2>Lab</h2>
+      <p className="hint">
+        Each Run button breaks one part of this shop on purpose, by changing the world around it (its traffic, a vendor it
+        calls, its cloud project), never its code. Under each button: what stops working and where in the shop to see it.
+        Starfish watches the shop's error logs and should notice. One scenario runs at a time.
+      </p>
       {healthError && <p role="alert" className="error">Health is unavailable right now.</p>}
       {health && <Health strip={health} />}
       {cycle && (
@@ -98,6 +103,17 @@ export function Lab() {
             >
               {pressing === s.id ? 'Starting…' : 'Run'}
             </button>
+            {s.pressable && (s.clues ?? []).length > 0 && (
+              <ul className="clues">
+                {(s.clues ?? []).map((c) => (
+                  <li key={c.breaks}>
+                    <span aria-hidden>⚠ </span>Breaks: {c.breaks}
+                    {c.where && <> <em>See it: {c.where}</em></>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!s.pressable && s.notPressableReason && <small className="muted">{s.notPressableReason}</small>}
           </li>
         ))}
       </ul>
