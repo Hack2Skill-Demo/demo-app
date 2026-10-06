@@ -54,6 +54,15 @@ export function App() {
           <button onClick={() => void signOut(auth)}>Leave</button>
         </nav>
       </header>
+      {page !== 'lab' && (
+        <p className="hint banner">
+          This is a demo shop. Open the{' '}
+          <button className="link" onClick={() => setPage('lab')}>
+            Lab
+          </button>{' '}
+          to break one part of it on purpose: each button says what will fail and where to see it.
+        </p>
+      )}
       <main>
         {page === 'shop' && <Shop onOrdered={() => setPage('orders')} />}
         {page === 'orders' && <Orders />}

@@ -15,7 +15,7 @@ label { display: block; margin: .75rem 0; }
 .shop { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
 @media (max-width: 40rem) { .shop { grid-template-columns: 1fr; } }
 ul { padding: 0; list-style: none; }
-.products li, .orders li, .scenarios li { display: flex; gap: 1rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid #ddd; flex-wrap: wrap; }
+.products li, .orders li, .scenarios > li { display: flex; gap: 1rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid #ddd; flex-wrap: wrap; }
 .products li span:first-child { flex: 1; }
 .health { display: flex; gap: 1rem; flex-wrap: wrap; }
 .dot { display: inline-block; width: .8rem; height: .8rem; border-radius: 50%; }
@@ -24,3 +24,9 @@ ul { padding: 0; list-style: none; }
 .details { flex-basis: 100%; background: #f0f0f0; padding: .5rem 1rem; border-radius: 4px; }
 .search { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; }
 textarea { display: block; margin-top: .25rem; padding: .4rem; width: 100%; box-sizing: border-box; }
+.hint { background: #fff8e1; border: 1px solid #f9ab00; border-radius: 4px; padding: .5rem 1rem; }
+.hint button.link { padding: 0; font: inherit; }
+.clues { flex-basis: 100%; margin: 0; font-size: .9rem; color: #5f4300; }
+.clues li { margin: .15rem 0; }
+.clues em { color: #444; }
+.muted { flex-basis: 100%; color: #666; }

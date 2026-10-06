@@ -1,10 +1,19 @@
 /** Types of what the demo controller's `control-*` callables return. */
+
+/** What a press breaks and where in the shop to see it. Written by the controller, so no fault is named in this repo. */
+export interface Clue {
+  breaks: string;
+  where?: string;
+}
+
 export interface ScenarioView {
   id: string;
   title: string;
   group: string;
   status: string;
   expected: string;
+  /** Absent from a controller deployed before clues existed. */
+  clues?: Clue[];
   pressable: boolean;
   teamPressable: boolean;
   notPressableReason?: string;
