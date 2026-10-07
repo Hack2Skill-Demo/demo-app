@@ -1,9 +1,12 @@
 name: CI
 
+# Starfish judges a patch by this job: it pushes the patch to a starfish/<cycle> branch and waits for the
+# check named `verify` on that commit. Without the starfish/** trigger no check ever appears and its cycle
+# times out. This workflow must keep referencing no secret: a patch's code runs in it.
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, 'starfish/**']
 
 jobs:
   verify:
