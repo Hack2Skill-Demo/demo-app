@@ -67,10 +67,9 @@ They meet at these points:
   `sku-sticker-pack`, `sku-cable-3m`, and `sku-sample-free`, which has no price on purpose), coupons `WELCOME10` and
   `THANKS5`, and gift card `GIFT-DEMO-0001`. `sku-does-not-exist` stays unknown.
 - **Order shape.** `orders-createOrder` takes `{ items: [{ sku, qty }], couponCode?, giftWrap?, giftNote?, giftCardCode?,
-  tags?, pickup? | shippingAddress? }` and returns `{ orderId }`. Orders carry `customerId`, which the
-  `(customerId, createdAt desc)` index serves.
-- **Indexes** in `firestore.indexes.json` match the queries the functions run: `(customerId, createdAt desc)` for recent orders,
-  `(tags array-contains, createdAt desc)` for tag search, and `(status, createdAt desc)` for the digest and rollup.
+  tags?, pickup? | shippingAddress? }` and returns `{ orderId }`. Orders carry `customerId`.
+- **Indexes.** `firestore.indexes.json` declares one composite index, `orders (status, createdAt desc)`. Neither the deploy
+  workflow nor any step here creates indexes in the project.
 - **Runtime account.** Functions run as `demo-functions@<project>`; invoices are also written to the bucket
   `<project>-demo-invoices`.
 - **Lint.** `ignoreUndefinedProperties` is banned (`eslint.config.js`); leave an undefined field out of the document instead.
@@ -151,5 +150,3 @@ backfill all use it.
   `gcloud run services add-iam-policy-binding pdf-renderer --member=serviceAccount:<functions SA> --role=roles/run.invoker`.
   The deploy workflow deploys `pdf-renderer` as a private service; its account also needs Cloud Build
   and Cloud Run deploy roles.
-- Deploy indexes by hand (`firebase deploy --only firestore:indexes`, never `--force`): the tag
-  search needs the `(uid, tags, createdAt)` index.
