@@ -33,14 +33,18 @@ export function Lab() {
       .catch((err) => setError(errorMessage(err)));
   }, []);
 
+  /** Resolves once the cycle state is in, so a press can keep its buttons locked until the new cycle shows. */
   const refresh = useCallback(() => {
-    call<undefined, { cycle: CycleView | null }>('control-getState').then((res) => setCycle(res.cycle)).catch(() => undefined);
+    const state = call<undefined, { cycle: CycleView | null }>('control-getState')
+      .then((res) => setCycle(res.cycle))
+      .catch(() => undefined);
     call<undefined, HealthStrip>('control-getHealth')
       .then((res) => {
         setHealth(res);
         setHealthError(false);
       })
       .catch(() => setHealthError(true));
+    return state;
   }, []);
 
   useEffect(() => {
@@ -56,8 +60,8 @@ export function Lab() {
     try {
       await call<{ scenarioId: string }, unknown>('control-triggerFault', { scenarioId: id });
       setNote(`Started ${id}.`);
-      refresh();
       loadScenarios();
+      await refresh();
     } catch (err) {
       setNote(`${id} could not start: ${errorMessage(err)}`);
     } finally {
@@ -81,6 +85,7 @@ export function Lab() {
           {cycle.scenarioId} {cycle.scenarioTitle && `(${cycle.scenarioTitle})`}: {cycle.state}
           {active && cycle.remainingSeconds !== null && `, ${Math.ceil(cycle.remainingSeconds / 60)} min left`}
           {cycle.failure && ` — ${cycle.failure}`}
+          {active && '. Run buttons unlock when it ends.'}
         </p>
       )}
       {error && (
