@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CycleView, HealthStrip, ScenarioView } from '../control';
 import { call, errorMessage } from '../firebase';
+import { endsLine, noTrafficRecorded } from '../lab';
 
 /** The Lab page talks only to the demo controller's `control-*` callables. A press sends a scenario id and nothing else. */
 const REFRESH_MS = 5000;
@@ -75,17 +76,24 @@ export function Lab() {
       <h2>Lab</h2>
       <p className="hint">
         Each Run button breaks one part of this shop on purpose, by changing the world around it (its traffic, a vendor it
-        calls, its cloud project), never its code. Under each button: what stops working and where in the shop to see it.
-        Starfish watches the shop's error logs and should notice. One scenario runs at a time.
+        calls, its cloud project), never its code. Under each button: what stops working, where in the shop to see it,
+        and what Starfish, which watches the shop's error logs, is expected to do (for noise, nothing). One scenario runs
+        at a time.
       </p>
       {healthError && <p role="alert" className="error">Health is unavailable right now.</p>}
       {health && <Health strip={health} />}
+      {health && noTrafficRecorded(health) && (
+        <p role="status" className="error">
+          No shop traffic was recorded in the last {health.windowMinutes} minutes, so the fake customers do not seem to be
+          running. A Run press that changes their traffic will not reach the shop, and Starfish will have nothing to notice.
+        </p>
+      )}
       {cycle && (
         <p role="status">
           {cycle.scenarioId} {cycle.scenarioTitle && `(${cycle.scenarioTitle})`}: {cycle.state}
           {active && cycle.remainingSeconds !== null && `, ${Math.ceil(cycle.remainingSeconds / 60)} min left`}
           {cycle.failure && ` — ${cycle.failure}`}
-          {active && '. Run buttons unlock when it ends.'}
+          {active && `. ${endsLine(cycle)}`}
         </p>
       )}
       {error && (
@@ -118,6 +126,7 @@ export function Lab() {
                 ))}
               </ul>
             )}
+            {s.pressable && s.expected && <small className="muted">Expected from Starfish: {s.expected}</small>}
             {!s.pressable && s.notPressableReason && <small className="muted">{s.notPressableReason}</small>}
           </li>
         ))}
