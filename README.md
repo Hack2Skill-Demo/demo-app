@@ -62,7 +62,8 @@ They meet at these points:
   Codes are random, expire, are rate-limited (5 wrong tries per 10 minutes) and only their SHA-256 hash is stored.
 - **The Lab page** calls `control-getScenarios`, `control-getState`, `control-getHealth` and
   `control-triggerFault({ scenarioId })`, and nothing else. The health strip is drawn from
-  `control-getHealth`.
+  `control-getHealth`. The filter above the scenarios groups them by the `outcome` each one carries in
+  `control-getScenarios` (what Starfish is expected to do); a controller that sends no outcomes leaves it hidden.
 - **Seed data.** A team member calls `catalog-seed({ confirm: true })` once: SKUs (`sku-mug`, `sku-tote`, `sku-poster`,
   `sku-sticker-pack`, `sku-cable-3m`, and `sku-sample-free`, which has no price on purpose), coupons `WELCOME10` and
   `THANKS5`, and gift card `GIFT-DEMO-0001`. `sku-does-not-exist` stays unknown.

@@ -1,5 +1,5 @@
 /** What the Lab page says about the controller's answers. Pure, so it is tested without a browser. */
-import type { CycleView, HealthStrip } from './control';
+import type { CycleView, HealthStrip, ScenarioView } from './control';
 
 /**
  * No feature has an outcome in the health window. The fake customers place a few ordinary orders every minute, so an
@@ -23,4 +23,44 @@ export function deadlineTime(cycle: Pick<CycleView, 'deadline'>): string | null 
 export function endsLine(cycle: Pick<CycleView, 'deadline'>): string {
   const time = deadlineTime(cycle);
   return `It runs until its deadline${time ? ` (${time})` : ''} unless the team resets it first, and is then recorded as timed out. Run buttons unlock when it ends.`;
+}
+
+/** What Starfish is expected to do after a press, as the Lab's filter groups it. */
+export type Behaviour = 'pr' | 'pr-merged' | 'draft-fix' | 'declined' | 'waiting-for-human' | 'handed-to-person' | 'other';
+
+/** The filter's options, in the order the Lab lists them. */
+export const BEHAVIOURS: ReadonlyArray<{ id: Behaviour; label: string }> = [
+  { id: 'pr', label: 'Opens a PR' },
+  { id: 'pr-merged', label: 'Opens a PR and merges it' },
+  { id: 'draft-fix', label: 'Drafts a fix (its checks stop it)' },
+  { id: 'declined', label: 'Triages and declines' },
+  { id: 'waiting-for-human', label: 'Triages and waits for a human' },
+  { id: 'handed-to-person', label: 'Drafts a fix and hands it to a person' },
+  { id: 'other', label: 'Other (records an incident, or nothing)' },
+];
+
+/** The controller's outcomes, each in exactly one group. An outcome missing here, or none at all, is `other`. */
+const BY_OUTCOME: Record<string, Behaviour> = {
+  'evidence-pr': 'pr',
+  revert: 'pr',
+  'fix-pr-merged': 'pr-merged',
+  blocked: 'draft-fix',
+  decline: 'declined',
+  notify: 'waiting-for-human',
+  escalate: 'waiting-for-human',
+  refused: 'waiting-for-human',
+  'fix-pr-for-human': 'handed-to-person',
+  'index-healed': 'handed-to-person',
+};
+
+export function behaviourOf(s: Pick<ScenarioView, 'outcome'>): Behaviour {
+  return (s.outcome && BY_OUTCOME[s.outcome]) || 'other';
+}
+
+/**
+ * Whether the controller says what Starfish is expected to do. One deployed before it sent outcomes sends none for any
+ * scenario, and then every scenario would land in "Other", so the filter has nothing to sort by.
+ */
+export function outcomesKnown(scenarios: ReadonlyArray<Pick<ScenarioView, 'outcome'>>): boolean {
+  return scenarios.some((s) => s.outcome !== undefined);
 }

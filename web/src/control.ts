@@ -12,6 +12,11 @@ export interface ScenarioView {
   group: string;
   status: string;
   expected: string;
+  /**
+   * The final outcome Starfish should reach (`fix-pr-merged`, `decline`, ...). Absent when the scenario names none, and
+   * from a controller deployed before it sent outcomes.
+   */
+  outcome?: string;
   /** Absent from a controller deployed before clues existed. */
   clues?: Clue[];
   pressable: boolean;
