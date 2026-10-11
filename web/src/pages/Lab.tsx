@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CycleView, HealthStrip, ScenarioView } from '../control';
 import { call, errorMessage } from '../firebase';
-import { endsLine, noTrafficRecorded } from '../lab';
+import { BEHAVIOURS, behaviourOf, endsLine, noTrafficRecorded, outcomesKnown, type Behaviour } from '../lab';
 
 /** The Lab page talks only to the demo controller's `control-*` callables. A press sends a scenario id and nothing else. */
 const REFRESH_MS = 5000;
@@ -26,6 +26,7 @@ export function Lab() {
   const [healthError, setHealthError] = useState(false);
   const [pressing, setPressing] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
+  const [behaviour, setBehaviour] = useState<Behaviour | 'all'>('all');
 
   const loadScenarios = useCallback(() => {
     setError(null);
@@ -71,6 +72,8 @@ export function Lab() {
   };
 
   const active = cycle?.state === 'active';
+  const sortable = scenarios !== null && outcomesKnown(scenarios);
+  const shown = sortable && behaviour !== 'all' ? scenarios.filter((s) => behaviourOf(s) === behaviour) : scenarios;
   return (
     <section>
       <h2>Lab</h2>
@@ -104,8 +107,27 @@ export function Lab() {
       )}
       {!error && !scenarios && <p>Loading scenarios…</p>}
       {scenarios?.length === 0 && <p>No scenarios are available.</p>}
+      {sortable && (
+        <label className="filter">
+          Expected from Starfish{' '}
+          <select value={behaviour} onChange={(e) => setBehaviour(e.target.value as Behaviour | 'all')}>
+            <option value="all">All ({scenarios.length})</option>
+            {BEHAVIOURS.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.label} ({scenarios.filter((s) => behaviourOf(s) === b.id).length})
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {scenarios !== null && scenarios.length > 0 && !sortable && (
+        <p className="muted">
+          The controller does not say yet what Starfish is expected to do for each scenario, so they cannot be filtered by it.
+        </p>
+      )}
+      {shown?.length === 0 && scenarios?.length !== 0 && <p>No scenario expects that from Starfish.</p>}
       <ul className="scenarios">
-        {scenarios?.map((s) => (
+        {shown?.map((s) => (
           <li key={s.id}>
             <strong>{s.id}</strong> <span>{s.title}</span>
             <span>Last result: {s.lastResult ? s.lastResult.outcome : 'never run'}</span>

@@ -30,3 +30,4 @@ textarea { display: block; margin-top: .25rem; padding: .4rem; width: 100%; box-
 .clues li { margin: .15rem 0; }
 .clues em { color: #444; }
 .muted { flex-basis: 100%; color: #666; }
+.filter select { margin-left: .5rem; padding: .3rem; }
