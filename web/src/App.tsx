@@ -1,6 +1,8 @@
 import { onAuthStateChanged, signInAnonymously, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
+import { markAboutSeen, shouldAutoOpenAbout } from './about';
+import { AboutDialog } from './AboutDialog';
 import { auth, db } from './firebase';
 import { EntryScreen } from './pages/EntryScreen';
 import { Lab } from './pages/Lab';
@@ -27,6 +29,7 @@ async function hasAccess(user: User): Promise<boolean> {
 export function App() {
   const [gate, setGate] = useState<Gate>({ state: 'loading' });
   const [page, setPage] = useState<Page>('shop');
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const evaluate = async (user: User | null) => {
     if (!user) {
@@ -37,6 +40,15 @@ export function App() {
   };
 
   useEffect(() => onAuthStateChanged(auth, (user) => void evaluate(user)), []);
+
+  // Once a visitor is in, the shop says what it is, once per browser: a judge may arrive here before reading Starfish.
+  const isOpen = gate.state === 'open';
+  useEffect(() => {
+    if (isOpen && shouldAutoOpenAbout()) {
+      setAboutOpen(true);
+      markAboutSeen();
+    }
+  }, [isOpen]);
 
   if (gate.state === 'loading') return <p className="center">Loading…</p>;
   if (gate.state === 'locked') return <EntryScreen onUnlocked={() => void evaluate(auth.currentUser)} />;
@@ -51,12 +63,17 @@ export function App() {
               {LABELS[p]}
             </button>
           ))}
+          <button onClick={() => setAboutOpen(true)}>About</button>
           <button onClick={() => void signOut(auth)}>Leave</button>
         </nav>
       </header>
       {page !== 'lab' && (
         <p className="hint banner">
-          This is a demo shop. Open the{' '}
+          This is a demo shop that{' '}
+          <button className="link" onClick={() => setAboutOpen(true)}>
+            Starfish watches
+          </button>
+          . Open the{' '}
           <button className="link" onClick={() => setPage('lab')}>
             Lab
           </button>{' '}
@@ -70,6 +87,14 @@ export function App() {
         {page === 'support' && <Support />}
         {page === 'lab' && <Lab />}
       </main>
+      <AboutDialog
+        open={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+        onOpenLab={() => {
+          setAboutOpen(false);
+          setPage('lab');
+        }}
+      />
     </div>
   );
 }
