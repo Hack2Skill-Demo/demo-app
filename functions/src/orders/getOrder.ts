@@ -10,7 +10,7 @@ export const getOrder = onCall(
   tracked<{ orderId?: unknown }, { order: OrderDetails }>('orders-getOrder', async (req) => {
     const uid = await requireGrant(req);
     const snap = await loadOwnOrder(req.data?.orderId, uid);
-    const address = snap.get('fulfillment.shippingAddress') as ShippingAddress;
-    return { order: toOrderDetails(snap, `${address.line1}, ${address.city}`) };
+    const address = snap.get('fulfillment.shippingAddress') as ShippingAddress | undefined;
+    return { order: toOrderDetails(snap, address ? `${address.line1}, ${address.city}` : '') };
   }),
 );
