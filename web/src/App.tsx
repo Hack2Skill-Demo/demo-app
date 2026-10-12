@@ -10,8 +10,8 @@ import { Orders } from './pages/Orders';
 import { Reports } from './pages/Reports';
 import { Shop } from './pages/Shop';
 import { Support } from './pages/Support';
+import { pageFromHash, type Page } from './route';
 
-type Page = 'shop' | 'orders' | 'reports' | 'support' | 'lab';
 const LABELS: Record<Page, string> = { shop: 'Shop', orders: 'My orders', reports: 'Reports', support: 'Support', lab: 'Lab' };
 type Gate = { state: 'loading' } | { state: 'locked' } | { state: 'open'; user: User };
 
@@ -28,7 +28,8 @@ async function hasAccess(user: User): Promise<boolean> {
 
 export function App() {
   const [gate, setGate] = useState<Gate>({ state: 'loading' });
-  const [page, setPage] = useState<Page>('shop');
+  // A link may open a page directly (Starfish's demo links to `/#lab`); the fragment survives the access-code screen.
+  const [page, setPage] = useState<Page>(() => pageFromHash(window.location.hash));
   const [aboutOpen, setAboutOpen] = useState(false);
 
   const evaluate = async (user: User | null) => {
