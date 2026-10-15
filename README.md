@@ -118,6 +118,7 @@ live one. Starfish can read the same document.
 
 | Function | What it does |
 | --- | --- |
+| `catalog-searchProducts` | Products by name, `{ query }`: every word must be in the name; an empty query lists the catalog |
 | `orders-searchOrders` | Orders by tag, newest first |
 | `orders-getOrder` | Order details, delivery or pickup |
 | `orders-cancelOrder` | Cancel an unpaid order; a gift card amount is given back |
