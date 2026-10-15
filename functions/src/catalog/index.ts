@@ -2,6 +2,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { Timestamp } from 'firebase-admin/firestore';
 import { db } from '../lib/firebase';
 import { requireTeam } from '../lib/guards';
+import { searchProducts } from './searchProducts';
 
 /** SKUs are the product document ids. `sku-sample-free` is deliberately priceless; `sku-does-not-exist` deliberately does not exist. */
 const PRODUCTS: { id: string; name: string; priceCents?: number }[] = [
@@ -30,4 +31,5 @@ export const catalog = {
     await batch.commit();
     return { products: PRODUCTS.length, coupons: COUPONS.length, giftCards: 1 };
   }),
+  searchProducts,
 };
