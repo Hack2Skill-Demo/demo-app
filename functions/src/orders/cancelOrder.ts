@@ -7,8 +7,8 @@ import { tracked } from '../lib/track';
 import { cancelTransition, markCancelled } from './cancelTransition';
 import { loadOwnOrder } from './model';
 
-function giftCardFor(code: string): DocumentSnapshot {
-  return db.doc(`giftCards/${code}`).get() as unknown as DocumentSnapshot;
+function giftCardFor(code: string): Promise<DocumentSnapshot> {
+  return db.doc(`giftCards/${code}`).get();
 }
 
 /** Cancel an unpaid order and give any gift card amount back. Cancelling twice is harmless. */
@@ -27,7 +27,7 @@ export const cancelOrder = onCall(
     if (decision.kind === 'refuse') throw new HttpsError('failed-precondition', decision.reason);
 
     if (decision.giftCardCode && decision.refundCents > 0) {
-      const card = giftCardFor(decision.giftCardCode);
+      const card = await giftCardFor(decision.giftCardCode);
       if (!card.exists) {
         logger.error('Gift card refund failed', { orderId: snap.id, giftCardCode: decision.giftCardCode });
         throw new HttpsError('not-found', 'That gift card does not exist');
