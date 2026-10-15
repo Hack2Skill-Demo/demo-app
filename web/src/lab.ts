@@ -64,3 +64,11 @@ export function behaviourOf(s: Pick<ScenarioView, 'outcome'>): Behaviour {
 export function outcomesKnown(scenarios: ReadonlyArray<Pick<ScenarioView, 'outcome'>>): boolean {
   return scenarios.some((s) => s.outcome !== undefined);
 }
+
+/**
+ * The scenarios the Lab lists: only the ones its Run button can start. The rest (driven by the team's runner, not
+ * producible yet, or deferred) are left out, so a visitor never meets a button that cannot work.
+ */
+export function runnable<T extends Pick<ScenarioView, 'pressable'>>(scenarios: readonly T[]): T[] {
+  return scenarios.filter((s) => s.pressable);
+}

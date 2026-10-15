@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FeatureHealth, HealthStrip } from './control';
-import { BEHAVIOURS, behaviourOf, deadlineTime, endsLine, noTrafficRecorded, outcomesKnown } from './lab';
+import { BEHAVIOURS, behaviourOf, deadlineTime, endsLine, noTrafficRecorded, outcomesKnown, runnable } from './lab';
 
 const feature = (status: FeatureHealth['status']): FeatureHealth => ({
   feature: 'checkout',
@@ -85,5 +85,18 @@ describe('outcomesKnown', () => {
 
   it('is true as soon as one scenario has an outcome', () => {
     expect(outcomesKnown([{}, { outcome: 'decline' }])).toBe(true);
+  });
+});
+
+describe('runnable', () => {
+  it('keeps only the scenarios the Run button can start, in order', () => {
+    const list = [
+      { id: 'CODE-01', pressable: true },
+      { id: 'FR-01', pressable: false },
+      { id: 'IDX-02', pressable: true },
+      { id: 'CON-01', pressable: false },
+    ];
+    expect(runnable(list).map((s) => s.id)).toEqual(['CODE-01', 'IDX-02']);
+    expect(runnable([])).toEqual([]);
   });
 });

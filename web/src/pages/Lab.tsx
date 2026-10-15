@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CycleView, HealthStrip, ScenarioView } from '../control';
 import { call, errorMessage } from '../firebase';
-import { BEHAVIOURS, behaviourOf, endsLine, noTrafficRecorded, outcomesKnown, type Behaviour } from '../lab';
+import { BEHAVIOURS, behaviourOf, endsLine, noTrafficRecorded, outcomesKnown, runnable, type Behaviour } from '../lab';
 
 /** The Lab page talks only to the demo controller's `control-*` callables. A press sends a scenario id and nothing else. */
 const REFRESH_MS = 5000;
@@ -31,7 +31,7 @@ export function Lab() {
   const loadScenarios = useCallback(() => {
     setError(null);
     call<undefined, { scenarios: ScenarioView[] }>('control-getScenarios')
-      .then((res) => setScenarios(res.scenarios))
+      .then((res) => setScenarios(runnable(res.scenarios)))
       .catch((err) => setError(errorMessage(err)));
   }, []);
 
@@ -132,13 +132,13 @@ export function Lab() {
             <strong>{s.id}</strong> <span>{s.title}</span>
             <span>Last result: {s.lastResult ? s.lastResult.outcome : 'never run'}</span>
             <button
-              disabled={!s.pressable || active || pressing !== null}
-              title={s.pressable ? s.expected : s.notPressableReason}
+              disabled={active || pressing !== null}
+              title={s.expected}
               onClick={() => void press(s.id)}
             >
               {pressing === s.id ? 'Starting…' : 'Run'}
             </button>
-            {s.pressable && (s.clues ?? []).length > 0 && (
+            {(s.clues ?? []).length > 0 && (
               <ul className="clues">
                 {(s.clues ?? []).map((c) => (
                   <li key={c.breaks}>
@@ -148,8 +148,7 @@ export function Lab() {
                 ))}
               </ul>
             )}
-            {s.pressable && s.expected && <small className="muted">Expected from Starfish: {s.expected}</small>}
-            {!s.pressable && s.notPressableReason && <small className="muted">{s.notPressableReason}</small>}
+            {s.expected && <small className="muted">Expected from Starfish: {s.expected}</small>}
           </li>
         ))}
       </ul>
