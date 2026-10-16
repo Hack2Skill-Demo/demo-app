@@ -22,7 +22,7 @@ export function deadlineTime(cycle: Pick<CycleView, 'deadline'>): string | null 
  */
 export function endsLine(cycle: Pick<CycleView, 'deadline'>): string {
   const time = deadlineTime(cycle);
-  return `It runs until its deadline${time ? ` (${time})` : ''} unless the team resets it first, and is then recorded as timed out. Run buttons unlock when it ends.`;
+  return `Ends ${time ? `at ${time}` : 'at its deadline'}, or sooner if the team resets it. Trigger Error buttons are locked until then.`;
 }
 
 /** What Starfish is expected to do after a press, as the Lab's filter groups it. */
@@ -66,7 +66,7 @@ export function outcomesKnown(scenarios: ReadonlyArray<Pick<ScenarioView, 'outco
 }
 
 /**
- * The scenarios the Lab lists: only the ones its Run button can start. The rest (driven by the team's runner, not
+ * The scenarios the Lab lists: only the ones its Trigger Error button can start. The rest (driven by the team's runner, not
  * producible yet, or deferred) are left out, so a visitor never meets a button that cannot work.
  */
 export function runnable<T extends Pick<ScenarioView, 'pressable'>>(scenarios: readonly T[]): T[] {

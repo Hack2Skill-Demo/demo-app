@@ -28,19 +28,19 @@ describe('noTrafficRecorded', () => {
 });
 
 describe('endsLine', () => {
-  it('names the deadline and says the cycle is then recorded as timed out', () => {
+  it('names the deadline and says the buttons stay locked until then', () => {
     const cycle = { deadline: '2026-10-10T15:34:40.789Z' };
     const time = deadlineTime(cycle);
     expect(time).not.toBeNull();
     expect(endsLine(cycle)).toBe(
-      `It runs until its deadline (${time}) unless the team resets it first, and is then recorded as timed out. Run buttons unlock when it ends.`
+      `Ends at ${time}, or sooner if the team resets it. Trigger Error buttons are locked until then.`
     );
   });
 
   it('leaves the time out when the deadline does not parse', () => {
     expect(deadlineTime({ deadline: 'soon' })).toBeNull();
     expect(endsLine({ deadline: 'soon' })).toBe(
-      'It runs until its deadline unless the team resets it first, and is then recorded as timed out. Run buttons unlock when it ends.'
+      'Ends at its deadline, or sooner if the team resets it. Trigger Error buttons are locked until then.'
     );
   });
 });
@@ -89,7 +89,7 @@ describe('outcomesKnown', () => {
 });
 
 describe('runnable', () => {
-  it('keeps only the scenarios the Run button can start, in order', () => {
+  it('keeps only the scenarios the Trigger Error button can start, in order', () => {
     const list = [
       { id: 'CODE-01', pressable: true },
       { id: 'FR-01', pressable: false },
