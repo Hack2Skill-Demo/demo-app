@@ -3,7 +3,10 @@ import type { CycleView, FeatureHealth, HealthStrip, ScenarioView } from '../con
 import { call, errorMessage } from '../firebase';
 import { BEHAVIOURS, behaviourOf, endsLine, noTrafficRecorded, outcomesKnown, runnable, type Behaviour } from '../lab';
 
-/** The Lab page talks only to the demo controller's `control-*` callables. A press sends a scenario id and nothing else. */
+/**
+ * The Lab page talks only to the demo controller's `control-*` callables. A press sends a scenario id and nothing else;
+ * Stop sends the running cycle's id and nothing else.
+ */
 const REFRESH_MS = 5000;
 
 const LEGEND: ReadonlyArray<{ status: FeatureHealth['status']; label: string }> = [
@@ -42,12 +45,19 @@ function Health({ strip }: { strip: HealthStrip }) {
 }
 
 /** The current cycle: a running one says what is running and how it ends; an ended one is the last result. */
-function Cycle({ cycle }: { cycle: CycleView }) {
+function Cycle({ cycle, stopping, onStop }: { cycle: CycleView; stopping: boolean; onStop: () => void }) {
   const active = cycle.state === 'active';
   const name = `${cycle.scenarioId}${cycle.scenarioTitle ? ` — ${cycle.scenarioTitle}` : ''}`;
   return (
     <div role="status" className={`cycle${active ? ' active' : ''}`}>
-      <strong>{active ? 'Running now' : 'Last triggered'}: {name}</strong>
+      <div className="cycle-head">
+        <strong>{active ? 'Running now' : 'Last triggered'}: {name}</strong>
+        {active && (
+          <button className="stop" disabled={stopping} onClick={onStop}>
+            {stopping ? 'Stopping…' : 'Stop'}
+          </button>
+        )}
+      </div>
       <p>
         {active ? (
           <>
@@ -70,6 +80,7 @@ export function Lab() {
   const [error, setError] = useState<string | null>(null);
   const [healthError, setHealthError] = useState(false);
   const [pressing, setPressing] = useState<string | null>(null);
+  const [stopping, setStopping] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [behaviour, setBehaviour] = useState<Behaviour | 'all'>('all');
 
@@ -116,6 +127,22 @@ export function Lab() {
     }
   };
 
+  /** Ends the running cycle now. The scenario's traffic stops; a code or cloud change stays until the team's reset. */
+  const stop = async (c: CycleView) => {
+    setStopping(true);
+    setNote(null);
+    try {
+      const res = await call<{ cycleId: string }, { stopped: boolean }>('control-stopCycle', { cycleId: c.cycleId });
+      setNote(res.stopped ? `Stopped ${c.scenarioId}. You can trigger the next one.` : `${c.scenarioId} had already ended.`);
+      loadScenarios();
+      await refresh();
+    } catch (err) {
+      setNote(`${c.scenarioId} could not be stopped: ${errorMessage(err)}`);
+    } finally {
+      setStopping(false);
+    }
+  };
+
   const active = cycle?.state === 'active';
   const sortable = scenarios !== null && outcomesKnown(scenarios);
   const shown = sortable && behaviour !== 'all' ? scenarios.filter((s) => behaviourOf(s) === behaviour) : scenarios;
@@ -136,7 +163,7 @@ export function Lab() {
           running. A Trigger Error press that changes their traffic will not reach the shop, and Starfish will have nothing to notice.
         </p>
       )}
-      {cycle && <Cycle cycle={cycle} />}
+      {cycle && <Cycle cycle={cycle} stopping={stopping} onStop={() => void stop(cycle)} />}
       {error && (
         <div role="alert" className="error">
           <p>Could not load the scenarios: {error}</p>
@@ -170,7 +197,7 @@ export function Lab() {
             <strong>{s.id}</strong> <span>{s.title}</span>
             <span>Last result: {s.lastResult ? s.lastResult.outcome : 'never run'}</span>
             <button
-              disabled={active || pressing !== null}
+              disabled={active || pressing !== null || stopping}
               title={s.expected}
               onClick={() => void press(s.id)}
             >

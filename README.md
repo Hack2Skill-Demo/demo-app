@@ -60,8 +60,9 @@ They meet at these points:
   `demoTeam: true`, set by hand with the Admin SDK (`setCustomUserClaims`). The controller refuses any other account.
   Revoking a code (`access-revokeCode`) ends its grants and revokes the refresh tokens of every account it opened.
   Codes are random, expire, are rate-limited (5 wrong tries per 10 minutes) and only their SHA-256 hash is stored.
-- **The Lab page** calls `control-getScenarios`, `control-getState`, `control-getHealth` and
-  `control-triggerFault({ scenarioId })`, and nothing else. The health strip is drawn from
+- **The Lab page** calls `control-getScenarios`, `control-getState`, `control-getHealth`,
+  `control-triggerFault({ scenarioId })` and `control-stopCycle({ cycleId })`, and nothing else. Stop ends the running
+  scenario early so the next one can be triggered; it does not restore code or cloud changes (the team's reset does). The health strip is drawn from
   `control-getHealth`. The filter above the scenarios groups them by the `outcome` each one carries in
   `control-getScenarios` (what Starfish is expected to do); a controller that sends no outcomes leaves it hidden.
 - **Seed data.** A team member calls `catalog-seed({ confirm: true })` once: SKUs (`sku-mug`, `sku-tote`, `sku-poster`,

@@ -26,6 +26,8 @@ ul { padding: 0; list-style: none; }
 .cycle { border: 1px solid #ccc; border-radius: 4px; padding: .5rem 1rem; margin: 1rem 0; background: #fff; }
 .cycle.active { border-color: #0b57d0; background: #eef3fd; }
 .cycle p { margin: .25rem 0 0; }
+.cycle-head { display: flex; justify-content: space-between; align-items: center; gap: .5rem; flex-wrap: wrap; }
+button.stop { border-color: #d93025; color: #b3261e; font-weight: 600; }
 .sr { position: absolute; left: -9999px; }
 .details { flex-basis: 100%; background: #f0f0f0; padding: .5rem 1rem; border-radius: 4px; }
 .search { display: flex; gap: .5rem; align-items: end; flex-wrap: wrap; }

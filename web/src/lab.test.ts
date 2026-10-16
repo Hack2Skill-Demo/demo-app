@@ -33,14 +33,14 @@ describe('endsLine', () => {
     const time = deadlineTime(cycle);
     expect(time).not.toBeNull();
     expect(endsLine(cycle)).toBe(
-      `Ends at ${time}, or sooner if the team resets it. Trigger Error buttons are locked until then.`
+      `Ends at ${time}, or press Stop to end it now. Trigger Error buttons are locked until then.`
     );
   });
 
   it('leaves the time out when the deadline does not parse', () => {
     expect(deadlineTime({ deadline: 'soon' })).toBeNull();
     expect(endsLine({ deadline: 'soon' })).toBe(
-      'Ends at its deadline, or sooner if the team resets it. Trigger Error buttons are locked until then.'
+      'Ends at its deadline, or press Stop to end it now. Trigger Error buttons are locked until then.'
     );
   });
 });

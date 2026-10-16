@@ -17,12 +17,12 @@ export function deadlineTime(cycle: Pick<CycleView, 'deadline'>): string | null 
 }
 
 /**
- * How a running cycle ends. Nothing on this page ends one: the team's reset does, and otherwise the deadline, which
- * the controller records as `timed_out`.
+ * How a running cycle ends: Stop on this page (`control-stopCycle`), the team's reset, or the deadline, which the
+ * controller records as `timed_out`.
  */
 export function endsLine(cycle: Pick<CycleView, 'deadline'>): string {
   const time = deadlineTime(cycle);
-  return `Ends ${time ? `at ${time}` : 'at its deadline'}, or sooner if the team resets it. Trigger Error buttons are locked until then.`;
+  return `Ends ${time ? `at ${time}` : 'at its deadline'}, or press Stop to end it now. Trigger Error buttons are locked until then.`;
 }
 
 /** What Starfish is expected to do after a press, as the Lab's filter groups it. */
