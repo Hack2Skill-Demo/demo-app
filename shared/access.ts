@@ -2,6 +2,14 @@
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const CODE_LENGTH = 10;
 
+/**
+ * The demo is open: every visitor is let in without a code. Their grant and claim carry this id, which matches no
+ * real code, so `access-revokeCode` never touches them and the demo controller counts them as one caller.
+ */
+export const OPEN_CODE_ID = 'open';
+/** How long an open grant lasts; a visitor who returns later is simply let in again. */
+export const OPEN_GRANT_DAYS = 7;
+
 export const RATE_LIMIT = { maxFailures: 5, windowMs: 10 * 60 * 1000 };
 
 export function normalizeCode(raw: string): string {

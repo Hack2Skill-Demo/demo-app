@@ -5,6 +5,8 @@ import { Timestamp } from 'firebase-admin/firestore';
 import {
   CODE_ALPHABET,
   CODE_LENGTH,
+  OPEN_CODE_ID,
+  OPEN_GRANT_DAYS,
   checkCode,
   isBlocked,
   normalizeCode,
@@ -39,6 +41,31 @@ const MESSAGES: Record<Exclude<CodeCheck, 'ok'>, string> = {
  * `demoTeam: true`. Set `demoTeam` by hand with the Admin SDK (`setCustomUserClaims`).
  */
 export const access = {
+  /**
+   * No code needed: any visitor (an anonymous account) is given an open grant and the claim the controller checks.
+   * Safe to call again; it only extends the grant. Refresh the ID token afterwards.
+   */
+  enter: onCall(
+    tracked<undefined, { expiresAtMs: number }>('access-enter', async (req) => {
+      const uid = requireAuth(req);
+      if (!isAnonymous(req)) {
+        throw new HttpsError('failed-precondition', 'Only visitors are let in without a code. Team members sign in with their own account.');
+      }
+      const now = Date.now();
+      const expiresAtMs = now + OPEN_GRANT_DAYS * 24 * 60 * 60 * 1000;
+      await db.doc(`accessGrants/${uid}`).set({
+        codeId: OPEN_CODE_ID,
+        grantedAt: Timestamp.fromMillis(now),
+        expiresAt: Timestamp.fromMillis(expiresAtMs),
+      });
+      const user = await getAuth().getUser(uid);
+      if (user.customClaims?.demoAccessCodeId !== OPEN_CODE_ID) {
+        await getAuth().setCustomUserClaims(uid, mergeClaims(user.customClaims, { demoAccessCodeId: OPEN_CODE_ID }));
+      }
+      return { expiresAtMs };
+    }),
+  ),
+
   /** A visitor trades a code for a grant and a claim on their (anonymous) account. Refresh the ID token afterwards. */
   redeemCode: onCall(
     tracked<{ code?: unknown }, { expiresAtMs: number }>('access-redeemCode', async (req) => {

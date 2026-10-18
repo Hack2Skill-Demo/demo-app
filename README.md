@@ -55,8 +55,10 @@ own; two deploys to one site overwrite each other.
 The Lab page is backed by a separate demo controller that is deployed to the same Firebase project from its own repo.
 They meet at these points:
 
-- **Claims.** A visitor enters an access code once; the browser signs in anonymously and `access-redeemCode` trades the
-  code for a grant and the custom claim `demoAccessCodeId` (the code's id, never the code). A team member carries
+- **Claims.** No login: the browser signs in anonymously and `access-enter` gives every visitor an open grant (7 days,
+  renewed on the next visit) and the custom claim `demoAccessCodeId: 'open'`, which matches no real code. The controller
+  rate-limits per code id, so all visitors share one limit. `access-redeemCode` still trades a real code for a grant
+  and the claim `demoAccessCodeId` (the code's id, never the code), but the shop no longer asks for one. A team member carries
   `demoTeam: true`, set by hand with the Admin SDK (`setCustomUserClaims`). The controller refuses any other account.
   Revoking a code (`access-revokeCode`) ends its grants and revokes the refresh tokens of every account it opened.
   Codes are random, expire, are rate-limited (5 wrong tries per 10 minutes) and only their SHA-256 hash is stored.
