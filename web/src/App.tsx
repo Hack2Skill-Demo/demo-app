@@ -1,10 +1,9 @@
-import { onAuthStateChanged, signInAnonymously, signOut, type User } from 'firebase/auth';
+import { onAuthStateChanged, signInAnonymously, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { markAboutSeen, shouldAutoOpenAbout } from './about';
 import { AboutDialog } from './AboutDialog';
-import { auth, db } from './firebase';
-import { EntryScreen } from './pages/EntryScreen';
+import { auth, call, db, errorMessage } from './firebase';
 import { Lab } from './pages/Lab';
 import { Orders } from './pages/Orders';
 import { Reports } from './pages/Reports';
@@ -13,7 +12,7 @@ import { Support } from './pages/Support';
 import { pageFromHash, type Page } from './route';
 
 const LABELS: Record<Page, string> = { shop: 'Shop', orders: 'My orders', reports: 'Reports', support: 'Support', lab: 'Lab' };
-type Gate = { state: 'loading' } | { state: 'locked' } | { state: 'open'; user: User };
+type Gate = { state: 'loading' } | { state: 'error'; message: string } | { state: 'open'; user: User };
 
 /** A browser is unlocked while it holds an unexpired grant, or when a team member is signed in. */
 async function hasAccess(user: User): Promise<boolean> {
@@ -28,7 +27,7 @@ async function hasAccess(user: User): Promise<boolean> {
 
 export function App() {
   const [gate, setGate] = useState<Gate>({ state: 'loading' });
-  // A link may open a page directly (Starfish's demo links to `/#lab`); the fragment survives the access-code screen.
+  // A link may open a page directly (Starfish's demo links to `/#lab`).
   const [page, setPage] = useState<Page>(() => pageFromHash(window.location.hash));
   const [aboutOpen, setAboutOpen] = useState(false);
 
@@ -37,7 +36,16 @@ export function App() {
       await signInAnonymously(auth);
       return;
     }
-    setGate((await hasAccess(user)) ? { state: 'open', user } : { state: 'locked' });
+    // No login: a visitor without a grant is given an open one, and a token that carries its claim.
+    try {
+      if (!(await hasAccess(user))) {
+        await call('access-enter');
+        await user.getIdToken(true);
+      }
+      setGate({ state: 'open', user });
+    } catch (err) {
+      setGate({ state: 'error', message: errorMessage(err) });
+    }
   };
 
   useEffect(() => onAuthStateChanged(auth, (user) => void evaluate(user)), []);
@@ -52,7 +60,7 @@ export function App() {
   }, [isOpen]);
 
   if (gate.state === 'loading') return <p className="center">Loading…</p>;
-  if (gate.state === 'locked') return <EntryScreen onUnlocked={() => void evaluate(auth.currentUser)} />;
+  if (gate.state === 'error') return <p role="alert" className="center error">{gate.message}</p>;
 
   return (
     <div className="app">
@@ -65,7 +73,6 @@ export function App() {
             </button>
           ))}
           <button onClick={() => setAboutOpen(true)}>About</button>
-          <button onClick={() => void signOut(auth)}>Leave</button>
         </nav>
       </header>
       {page !== 'lab' && (
